@@ -1,0 +1,72 @@
+/* Custom CSS & Minecraft Aesthetic Enhancements */
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+/* Minecraft color formatting previews (when texts have § codes) */
+.mc-color-0 { color: #000000; }
+.mc-color-1 { color: #0000aa; }
+.mc-color-2 { color: #00aa00; }
+.mc-color-3 { color: #00aaaa; }
+.mc-color-4 { color: #aa0000; }
+.mc-color-5 { color: #aa00aa; }
+.mc-color-6 { color: #ffaa00; }
+.mc-color-7 { color: #aaaaaa; }
+.mc-color-8 { color: #555555; }
+.mc-color-9 { color: #5555ff; }
+.mc-color-a { color: #55ff55; }
+.mc-color-b { color: #55ffff; }
+.mc-color-c { color: #ff5555; }
+.mc-color-d { color: #ff55ff; }
+.mc-color-e { color: #ffff55; }
+.mc-color-f { color: #ffffff; }
+
+/* Table editable input highlight */
+.editable-input:focus {
+  background-color: #022c22 !important;
+  outline: 2px solid #10b981 !important;
+}
