@@ -32,16 +32,6 @@
 
 ---
 
-## 🚀 Hướng Dẫn Sử Dụng Nhanh
-
-### 1. Khởi động ứng dụng
-- **Cách 1 (Nhanh nhất)**: Nhấp đúp chuột vào file **`start.bat`**. Ứng dụng sẽ tự động khởi động và mở trình duyệt tại `http://localhost:8080`.
-- **Cách 2 (Bằng dòng lệnh)**:
-  ```bash
-  cd C:\Users\vuong\.gemini\antigravity\scratch\mcpe-mod-translator
-  node server.js
-  ```
-
 ### 2. Dịch mod
 1. Kéo & thả file mod (`.mcpack`, `.mcaddon`, `.zip`) vào trang web.
 2. Hệ thống sẽ thống kê số dòng `.lang`, số chuỗi **Menu JS** và nhãn **JSON UI**.
@@ -55,29 +45,6 @@
 7. Bấm **"Tải Về File Mod Đã Dịch"**.
 
 ---
-
-## 📂 Cấu Trúc Mã Nguồn
-
-```
-mcpe-mod-translator/
-├── server.js               # Máy chủ Express, API kiểm tra, dịch SSE và đóng gói file
-├── services/
-│   ├── archiveService.js   # Đọc, phân tích và đóng gói .mcpack / .mcaddon / .zip
-│   ├── langParser.js       # Phân tích cú pháp file texts/*.lang và serialize lại
-│   ├── scriptParser.js     # Trích xuất và thay thế chuỗi menu trong JavaScript Script API
-│   ├── uiJsonParser.js     # Trích xuất và thay thế chuỗi nhãn trong JSON UI
-│   ├── translator.js       # Tích hợp Google Translate & Gemini 2.0 Flash AI
-│   └── mcDictionary.js     # Từ điển Minecraft & thuật toán bảo vệ mã màu §
-├── public/
-│   ├── index.html          # Giao diện Web hiện đại, responsive
-│   ├── app.js              # Xử lý kéo thả, SSE live stream, bảng edit trực tiếp
-│   └── style.css           # Hiệu ứng giao diện, dark mode Minecraft
-├── test/
-│   ├── verify.js           # Kiểm thử tự động hệ thống .lang
-│   └── verify_menus.js     # Kiểm thử tự động hệ thống dịch JS Menu & JSON UI
-├── start.bat               # File khởi động 1-click cho Windows
-└── package.json            # Cấu hình thư viện Node.js
-```
 
 ## 🔐 Tài khoản, VIP có thời hạn & vượt link
 
