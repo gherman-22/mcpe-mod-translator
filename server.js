@@ -25,18 +25,18 @@ const DEFAULT_CONFIG = {
     enabled: true,
     donation: {
       enabled: true,
-      bankCode: "MB",
-      accountNumber: "0386888999",
-      accountHolder: "NGUYEN VAN A",
-      defaultAmount: 20000,
-      momoPhone: "0386888999",
+      bankCode: "BIDV",
+      accountNumber: "8837590075",
+      accountHolder: "BUI QUOC BAO",
+      defaultAmount: 10000,
+      momoPhone: "0978921749",
       message: "Ung ho MCPE Mod Translator"
     },
     vipSystem: {
       enabled: true,
       keys: ["VIP-MCPE-2026", "VIP-TRANSLATE-PREMIUM", "PRO-MODDER-888"],
       contactInfo: "Liên hệ Zalo/Facebook/Fanpage của bạn để nhận key VIP",
-      defaultVipDays: 30
+      defaultVipDays: 5
     },
     downloadGate: {
       countdownSeconds: 5,
