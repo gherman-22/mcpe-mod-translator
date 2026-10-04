@@ -1114,18 +1114,22 @@ function switchHubTab(targetId) {
 // 8. MAIN INITIALIZATION & EVENT LISTENERS
 // =========================================================================
 function init() {
-  setupDragAndDrop();
-  setupConfigListeners();
-  setupTableSearch();
-  setupModals();
+  // Wire account actions first. A broken optional page widget must not disable
+  // registration, login, or password recovery.
+  safelyInitialize('account controls', setupAuth);
+  // Keep the primary account and support dialogs available even if an unrelated
+  // page feature fails while initializing.
+  safelyInitialize('dialogs', setupModals);
+  safelyInitialize('file upload controls', setupDragAndDrop);
+  safelyInitialize('translation settings', setupConfigListeners);
+  safelyInitialize('translation table search', setupTableSearch);
   loadMonetizationConfig();
   loadLinkGateConfig();
   loadCurrentUser();
-  setupAuth();
-  initClicker();
-  setupHubTabs();
-  initCrateGame();
-  init2048Game();
+  safelyInitialize('clicker game', initClicker);
+  safelyInitialize('waiting hub tabs', setupHubTabs);
+  safelyInitialize('VIP crate game', initCrateGame);
+  safelyInitialize('2048 game', init2048Game);
 
   if (btnToggleBgm) {
     btnToggleBgm.addEventListener('click', toggleChillMusic);
@@ -1137,6 +1141,14 @@ function init() {
   loadRandomQuiz();
 
   vipRefreshTimer = setInterval(refreshVipStatus, 60 * 1000);
+}
+
+function safelyInitialize(featureName, initialize) {
+  try {
+    initialize();
+  } catch (error) {
+    console.error(`Could not initialize ${featureName}:`, error);
+  }
 }
 
 async function loadMonetizationConfig() {
@@ -1490,6 +1502,20 @@ function setupAuth() {
 }
 
 function setupModals() {
+  // Bind these first so a failure in optional install or clipboard controls
+  // cannot prevent the VIP and donation dialogs from opening.
+  if (btnOpenVipModal) {
+    btnOpenVipModal.addEventListener('click', () => {
+      vipModal.classList.remove('hidden');
+    });
+  }
+
+  if (btnOpenDonateModal) {
+    btnOpenDonateModal.addEventListener('click', () => {
+      donateModal.classList.remove('hidden');
+    });
+  }
+
   if (btnOpenInstallModal) {
     btnOpenInstallModal.addEventListener('click', () => {
       installAppModal.classList.remove('hidden');
@@ -1526,15 +1552,6 @@ function setupModals() {
       }
     });
   }
-
-  btnOpenVipModal.addEventListener('click', () => {
-    if (!currentUser) return openAuthModal('login');
-    vipModal.classList.remove('hidden');
-  });
-
-  btnOpenDonateModal.addEventListener('click', () => {
-    donateModal.classList.remove('hidden');
-  });
 
   if (btnTipFromSuccess) {
     btnTipFromSuccess.addEventListener('click', () => {
@@ -2028,4 +2045,8 @@ function resetToUpload() {
   resultSection.classList.add('hidden');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init, { once: true });
+} else {
+  init();
+}

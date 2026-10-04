@@ -93,8 +93,28 @@ async function findUserByEmail(email) {
 }
 
 async function createUser(user) {
-  if (mongoDb.isMongoConnected()) { await mongoDb.insertUser(user); return; }
+  if (mongoDb.isMongoConnected()) {
+    try {
+      await mongoDb.insertUser(user);
+      return;
+    } catch (error) {
+      // MongoDB's unique email index is the final guard against simultaneous registrations.
+      if (error.code === 11000) {
+        const duplicate = new Error('Email đã tồn tại. Vui lòng chuyển sang tab Đăng nhập.');
+        duplicate.code = 'EMAIL_EXISTS';
+        throw duplicate;
+      }
+      throw error;
+    }
+  }
+
+  // Recheck immediately before writing so concurrent requests cannot create duplicate accounts.
   const users = loadUsersFromFile();
+  if (users.some(existing => normalizeEmail(existing.email) === normalizeEmail(user.email))) {
+    const duplicate = new Error('Email đã tồn tại. Vui lòng chuyển sang tab Đăng nhập.');
+    duplicate.code = 'EMAIL_EXISTS';
+    throw duplicate;
+  }
   users.push(user);
   saveUsersToFile(users);
 }
@@ -313,25 +333,33 @@ app.post('/api/auth/register', async (req, res) => {
     });
   }
 
-  const existing = await findUserByEmail(email);
-  if (existing) {
-    return res.status(400).json({ success: false, message: 'Email đã tồn tại. Vui lòng chuyển sang tab Đăng nhập.' });
+  try {
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'Email đã tồn tại. Vui lòng chuyển sang tab Đăng nhập.' });
+    }
+
+    const newUser = {
+      id: crypto.randomUUID(),
+      email,
+      passwordHash: bcrypt.hashSync(password, 12),
+      vipUntil: null,
+      vipTier: null,
+      createdAt: new Date().toISOString()
+    };
+
+    await createUser(newUser);
+
+    const token = jwt.sign({ id: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '365d' });
+    setAuthCookie(res, token);
+    return res.json({ success: true, token, user: userPublic(newUser) });
+  } catch (error) {
+    if (error.code === 'EMAIL_EXISTS' || error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Email đã tồn tại. Vui lòng chuyển sang tab Đăng nhập.' });
+    }
+    console.error('Registration failed:', error);
+    return res.status(500).json({ success: false, message: 'Không thể lưu tài khoản lúc này. Vui lòng thử lại.' });
   }
-
-  const newUser = {
-    id: crypto.randomUUID(),
-    email,
-    passwordHash: bcrypt.hashSync(password, 12),
-    vipUntil: null,
-    vipTier: null,
-    createdAt: new Date().toISOString()
-  };
-
-  await createUser(newUser);
-
-  const token = jwt.sign({ id: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '365d' });
-  setAuthCookie(res, token);
-  res.json({ success: true, token, user: userPublic(newUser) });
 });
 
 app.post('/api/auth/login', async (req, res) => {
