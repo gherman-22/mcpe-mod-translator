@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Giới Thiệu - MCPE Mod & Menu Auto-Translator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Google Fonts: Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: #060911;
+      color: #f1f5f9;
+      overflow-x: hidden;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #10b981;
+    }
+    /* Glow animations */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+    .animate-pulse-glow {
+      animation: pulseGlow 4s infinite ease-in-out;
+    }
+    /* Scanline effect for terminal */
+    .scanline {
+      background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0, 0, 0, 0.3) 50%, rgba(0, 0, 0, 0.3));
+      background-size: 100% 4px;
+    }
+    /* Isometric 3D Cube */
+    .cube-container {
+      perspective: 800px;
+    }
+    .cube {
+      width: 100px;
+      height: 100px;
+      position: relative;
+      transform-style: preserve-3d;
+      transform: rotateX(-22deg) rotateY(-35deg);
+      animation: spinCube 12s infinite linear;
+    }
+    @keyframes spinCube {
+      0% { transform: rotateX(-22deg) rotateY(0deg); }
+      100% { transform: rotateX(-22deg) rotateY(360deg); }
+    }
+    .cube-face {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      border: 2px solid rgba(16, 185, 129, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: bold;
+      color: #10b981;
+      backdrop-blur-md;
+    }
+    .face-front  { background: rgba(16, 185, 129, 0.25); transform: translateZ(50px); }
+    .face-back   { background: rgba(13, 148, 136, 0.25); transform: rotateY(180deg) translateZ(50px); }
+    .face-right  { background: rgba(6, 182, 212, 0.25); transform: rotateY(90deg) translateZ(50px); }
+    .face-left   { background: rgba(16, 185, 129, 0.25); transform: rotateY(-90deg) translateZ(50px); }
+    .face-top    { background: rgba(52, 211, 153, 0.35); transform: rotateX(90deg) translateZ(50px); }
+    .face-bottom { background: rgba(5, 150, 105, 0.25); transform: rotateX(-90deg) translateZ(50px); }
+
+    /* Scene Transitions */
+    .scene-fade-enter {
+      opacity: 0;
+      transform: scale(0.97) translateY(10px);
+    }
+    .scene-fade-active {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .scene-fade-exit {
+      opacity: 0;
+      transform: scale(1.02) translateY(-10px);
+      transition: all 0.4s cubic-bezier(0.7, 0, 0.84, 0);
+    }
+  </style>
+</head>
+<body class="selection:bg-emerald-500 selection:text-white">
+
+  <!-- Background Canvas for Particles & Grid -->
+  <canvas id="bgCanvas" class="fixed inset-0 pointer-events-none z-0"></canvas>
+
+  <!-- Ambient Glow Blobs -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="absolute -top-32 left-1/4 w-[600px] h-[600px] bg-emerald-600/10 rounded-full blur-[140px] animate-pulse-glow"></div>
+    <div class="absolute top-1/2 -right-40 w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[140px] animate-pulse-glow" style="animation-delay: 2s;"></div>
+    <div class="absolute -bottom-32 left-1/3 w-[600px] h-[600px] bg-amber-600/10 rounded-full blur-[140px] animate-pulse-glow" style="animation-delay: 1s;"></div>
+  </div>
+
+  <!-- Top Navigation Bar -->
+  <header class="relative z-30 border-b border-gray-800/80 bg-gray-950/70 backdrop-blur-md px-4 sm:px-6 py-3">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2 group">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+            <i class="fa-solid fa-cube text-base"></i>
+          </div>
+          <div>
+            <div class="font-extrabold text-white text-base tracking-tight flex items-center gap-1.5">
+              MCPE <span class="text-emerald-400">Translator</span>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">VIDEO SHOWCASE</span>
+            </div>
+            <p class="text-[11px] text-gray-400">Trình chiếu & Thuyết minh hệ thống</p>
+          </div>
+        </a>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <button id="btnExportVideo" class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)] flex items-center gap-1.5">
+          <i class="fa-solid fa-file-video text-amber-400"></i>
+          <span id="exportBtnLabel">Xuất Video (MP4 / WebM)</span>
+        </button>
+
+        <a href="/" class="px-3.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Về Ứng Dụng</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-col items-center">
+
+    <!-- Video Theater Stage Card -->
+    <div id="videoContainer" class="w-full bg-gray-950/80 border border-gray-800 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl relative flex flex-col">
+      
+      <!-- Video Screen Header Bar -->
+      <div class="bg-gray-900/90 border-b border-gray-800/80 px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 font-bold tracking-wide text-[11px]">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+            LIVE PRESENTATION
+          </span>
+          <span id="currentSceneTag" class="text-gray-300 font-medium">Cảnh 1/6: Giới Thiệu Tổng Quan</span>
+        </div>
+
+        <!-- Audio & Mode Indicators -->
+        <div class="flex items-center gap-3">
+          <!-- Voice Visualizer Mini Bars -->
+          <div class="flex items-center gap-1 bg-gray-800/60 px-2.5 py-1 rounded-md border border-gray-700/50">
+            <i class="fa-solid fa-volume-high text-emerald-400 text-xs mr-1"></i>
+            <span class="text-[11px] text-gray-300 font-mono" id="voiceStatusText">Voice: Sẵn sàng</span>
+            <div id="audioBars" class="flex items-end gap-0.5 h-3.5 ml-1.5">
+              <span class="w-1 bg-emerald-400 rounded-full h-1 transition-all"></span>
+              <span class="w-1 bg-emerald-400 rounded-full h-2 transition-all"></span>
+              <span class="w-1 bg-emerald-400 rounded-full h-1.5 transition-all"></span>
+              <span class="w-1 bg-emerald-400 rounded-full h-3 transition-all"></span>
+              <span class="w-1 bg-emerald-400 rounded-full h-2 transition-all"></span>
+            </div>
+          </div>
+
+          <!-- BGM Toggle -->
+          <button id="btnToggleBgm" class="px-2.5 py-1 rounded-md bg-gray-800/60 hover:bg-gray-700 border border-gray-700/50 text-gray-300 text-xs transition-all flex items-center gap-1.5" title="Bật/Tắt nhạc nền Ambient">
+            <i class="fa-solid fa-music text-amber-400"></i>
+            <span id="bgmLabel">Nhạc nền: BẬT</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Video Display Stage (16:9 Aspect Ratio) -->
+      <div id="screenStage" class="relative w-full aspect-[16/9] min-h-[380px] md:min-h-[500px] bg-gradient-to-b from-[#070b14] via-[#090e1c] to-[#04070e] overflow-hidden flex items-center justify-center p-6 md:p-12 select-none">
+        
+        <!-- Subtle Grid & Scanline Background -->
+        <div class="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none"></div>
+        <div class="absolute inset-0 scanline pointer-events-none opacity-20"></div>
+
+        <!-- SCENE 1: INTRO -->
+        <div id="scene1" class="scene-view w-full h-full flex flex-col items-center justify-center text-center relative z-10">
+          <div class="cube-container mb-6">
+            <div class="cube">
+              <div class="cube-face face-front"><i class="fa-solid fa-cube"></i></div>
+              <div class="cube-face face-back"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+              <div class="cube-face face-right"><i class="fa-brands fa-js"></i></div>
+              <div class="cube-face face-left"><i class="fa-solid fa-language"></i></div>
+              <div class="cube-face face-top"><i class="fa-solid fa-crown text-amber-400"></i></div>
+              <div class="cube-face face-bottom"><i class="fa-solid fa-shield-halved"></i></div>
+            </div>
+          </div>
+
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-4 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+            <i class="fa-solid fa-sparkles"></i> MINECRAFT BEDROCK LOCALIZATION SUITE 2026
+          </div>
+
+          <h1 class="text-3xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight mb-4 leading-tight">
+            MCPE <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400">Mod & Menu</span><br>Auto-Translator
+          </h1>
+
+          <p class="text-gray-300 text-sm sm:text-lg max-w-2xl mx-auto mb-8 font-light">
+            Công nghệ tự động chuyển ngữ thông minh dành riêng cho Mod, Addon, Menu JavaScript và JSON UI trên Minecraft Bedrock Edition (PE & PC).
+          </p>
+
+          <div class="flex flex-wrap items-center justify-center gap-2.5 max-w-xl">
+            <span class="px-3 py-1.5 rounded-lg bg-gray-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-semibold shadow-lg">
+              <i class="fa-solid fa-bolt text-emerald-400 mr-1.5"></i> Dịch 1 cú Click
+            </span>
+            <span class="px-3 py-1.5 rounded-lg bg-gray-900/90 border border-amber-500/40 text-amber-300 text-xs font-semibold shadow-lg">
+              <i class="fa-brands fa-js text-amber-400 mr-1.5"></i> Dịch Menu Script API
+            </span>
+            <span class="px-3 py-1.5 rounded-lg bg-gray-900/90 border border-cyan-500/40 text-cyan-300 text-xs font-semibold shadow-lg">
+              <i class="fa-solid fa-shield-halved text-cyan-400 mr-1.5"></i> Bảo toàn mã màu §
+            </span>
+            <span class="px-3 py-1.5 rounded-lg bg-gray-900/90 border border-purple-500/40 text-purple-300 text-xs font-semibold shadow-lg">
+              <i class="fa-solid fa-crown text-yellow-400 mr-1.5"></i> Hệ thống VIP & Link Gate
+            </span>
+          </div>
+        </div>
+
+        <!-- SCENE 2: AI BUILDING THE SYSTEM (CẢNH AI XÂY DỰNG LÊN) -->
+        <div id="scene2" class="scene-view w-full h-full hidden flex-col justify-center relative z-10">
+          <div class="w-full max-w-3xl mx-auto bg-gray-950/90 border border-gray-800 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col backdrop-blur-xl">
+            <!-- IDE Titlebar -->
+            <div class="bg-gray-900 border-b border-gray-800 px-4 py-2.5 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-yellow-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+                <span class="text-xs font-mono text-gray-400 ml-2">ai-genesis-agent :: server.js & parsers</span>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] font-mono text-emerald-400">
+                <i class="fa-solid fa-microchip animate-spin" style="animation-duration: 4s;"></i>
+                <span>AI SYNTHESIZING CODE</span>
+              </div>
+            </div>
+
+            <!-- Code Editor & Live Construction View -->
+            <div class="p-5 font-mono text-xs sm:text-sm text-gray-300 space-y-2 h-[260px] sm:h-[300px] overflow-y-auto" id="aiTerminalCode">
+              <div class="text-purple-400">// [ANTIGRAVITY AI]: Architecting MCPE Translation Engine...</div>
+              <div class="text-gray-500">&gt; Initializing Express 5, Multer buffer streaming &amp; SSE Real-Time pipeline...</div>
+              <div><span class="text-blue-400">const</span> <span class="text-emerald-300">langParser</span> = <span class="text-yellow-300">require</span>(<span class="text-amber-300">'./services/langParser'</span>);</div>
+              <div><span class="text-blue-400">const</span> <span class="text-emerald-300">scriptParser</span> = <span class="text-yellow-300">require</span>(<span class="text-amber-300">'./services/scriptParser'</span>);</div>
+              <div><span class="text-blue-400">const</span> <span class="text-emerald-300">colorShield</span> = <span class="text-yellow-300">require</span>(<span class="text-amber-300">'./services/mcDictionary'</span>);</div>
+              
+              <div class="mt-2 text-cyan-400">// AI Parsing Minecraft Bedrock Script API (@minecraft/server-ui)</div>
+              <div class="bg-gray-900/80 p-2.5 rounded-lg border border-gray-800 text-[11px] sm:text-xs">
+                <span class="text-pink-400">function</span> <span class="text-yellow-300">extractFormMenus</span>(code) {<br>
+                &nbsp;&nbsp;<span class="text-gray-500">// Regex AST: Protect variables, translate titles, buttons &amp; textFields</span><br>
+                &nbsp;&nbsp;<span class="text-blue-400">return</span> code.<span class="text-yellow-300">replace</span>(<span class="text-amber-300">/form\.(title|body|button)\((['"`])(.*)\2\)/g</span>, ...);<br>
+                }
+              </div>
+
+              <div class="mt-2 text-amber-400">// Injecting Color Code Protection Engine (§0-§f, §a, §l, %s)</div>
+              <div class="text-gray-400">&gt; Masking Minecraft raw color codes to prevent translator breakage... <span class="text-emerald-400 font-bold">[100% PROTECTED]</span></div>
+              
+              <div class="mt-2 text-green-400 flex items-center gap-2">
+                <i class="fa-solid fa-check-circle"></i>
+                <span class="font-bold">SYSTEM BUILD COMPLETE: Server active at http://localhost:8080</span>
+              </div>
+            </div>
+
+            <!-- Architecture Nodes Bar -->
+            <div class="bg-gray-900/90 border-t border-gray-800 px-4 py-2.5 flex items-center justify-around text-[10px] sm:text-xs font-mono text-gray-400">
+              <span class="flex items-center gap-1 text-emerald-400"><i class="fa-solid fa-server"></i> Express Core</span>
+              <span class="text-gray-600">→</span>
+              <span class="flex items-center gap-1 text-cyan-400"><i class="fa-solid fa-filter"></i> AST Parsers</span>
+              <span class="text-gray-600">→</span>
+              <span class="flex items-center gap-1 text-amber-400"><i class="fa-solid fa-shield"></i> Color Shield</span>
+              <span class="text-gray-600">→</span>
+              <span class="flex items-center gap-1 text-purple-400"><i class="fa-solid fa-network-wired"></i> SSE Stream</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCENE 3: FULL TRANSLATION CAPABILITIES (TÍNH NĂNG DỊCH TOÀN DIỆN) -->
+        <div id="scene3" class="scene-view w-full h-full hidden flex-col justify-center relative z-10">
+          <div class="text-center mb-6">
+            <h2 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Sức Mạnh Dịch Thuật <span class="text-emerald-400">Đột Phá</span>
+            </h2>
+            <p class="text-gray-400 text-xs sm:text-sm mt-1">Dịch trọn gói mọi thành phần của Mod mà không chạm vào logic code</p>
+          </div>
+
+          <!-- 4 Pillars Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 max-w-5xl mx-auto w-full">
+            <!-- Card 1: .lang -->
+            <div class="bg-gray-900/80 border border-gray-800 hover:border-emerald-500/50 rounded-2xl p-4 backdrop-blur-xl shadow-xl transition-all">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg mb-3">
+                <i class="fa-solid fa-file-lines"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Chuẩn texts/*.lang</h3>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Dịch tên vũ khí, giáp, quặng, thực thể, enchant... Tự động sinh <code class="text-emerald-400 font-mono">vi_VN.lang</code> và cập nhật <code class="text-emerald-400 font-mono">languages.json</code>.
+              </p>
+            </div>
+
+            <!-- Card 2: JS Menus -->
+            <div class="bg-gray-900/80 border border-gray-800 hover:border-amber-500/50 rounded-2xl p-4 backdrop-blur-xl shadow-xl transition-all">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg mb-3">
+                <i class="fa-brands fa-js"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Menu Script API</h3>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Tự động nhận diện Form Menu (@minecraft/server-ui), các nút bấm, ô nhập chữ, dropdown và tin nhắn chat của người chơi.
+              </p>
+            </div>
+
+            <!-- Card 3: JSON UI -->
+            <div class="bg-gray-900/80 border border-gray-800 hover:border-cyan-500/50 rounded-2xl p-4 backdrop-blur-xl shadow-xl transition-all">
+              <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-lg mb-3">
+                <i class="fa-solid fa-window-restore"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Custom JSON UI</h3>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Quét và dịch các nhãn hiển thị trong file <code class="text-cyan-400 font-mono">ui/**/*.json</code>: Menu Shop, Custom HUD, Bảng hội thoại NPC.
+              </p>
+            </div>
+
+            <!-- Card 4: Color Code Shield -->
+            <div class="bg-gray-900/80 border border-gray-800 hover:border-purple-500/50 rounded-2xl p-4 backdrop-blur-xl shadow-xl transition-all">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-lg mb-3">
+                <i class="fa-solid fa-shield-halved"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Bảo Vệ Mã Màu §</h3>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Bảo vệ nguyên vẹn các mã màu đặc trưng <code class="text-amber-400 font-mono">§a, §c, §l, §r</code> và biến số <code class="text-gray-300 font-mono">%s, {0}</code>. Mod chạy 100% không lỗi!
+              </p>
+            </div>
+          </div>
+
+          <!-- Live Comparison Showcase -->
+          <div class="mt-5 max-w-2xl mx-auto w-full bg-gray-950/80 border border-gray-800 rounded-xl p-3.5 flex items-center justify-between text-xs font-mono">
+            <div class="text-gray-400">
+              <span class="text-red-400 font-bold">GỐC:</span> "§aLegendary §cFire Sword §7[Tier %s]"
+            </div>
+            <div class="text-emerald-400 text-base font-bold px-2">➜</div>
+            <div class="text-emerald-300">
+              <span class="text-emerald-400 font-bold">DỊCH:</span> "§aThần Thoại §cKiếm Lửa §7[Cấp %s]"
+            </div>
+          </div>
+        </div>
+
+        <!-- SCENE 4: AUTH, VIP & LINK GATE (TÀI KHOẢN, VIP & VƯỢT LINK) -->
+        <div id="scene4" class="scene-view w-full h-full hidden flex-col justify-center relative z-10">
+          <div class="text-center mb-6">
+            <h2 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Hệ Thống Tài Khoản & <span class="text-amber-400">Đặc Quyền VIP</span>
+            </h2>
+            <p class="text-gray-400 text-xs sm:text-sm mt-1">Linh hoạt giữa dịch miễn phí qua Link Gate và đặc quyền VIP không giới hạn</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl mx-auto w-full">
+            <!-- VIP Tier Card -->
+            <div class="bg-gradient-to-b from-amber-950/40 via-gray-900/80 to-gray-950/90 border border-amber-500/40 rounded-3xl p-6 backdrop-blur-xl shadow-[0_0_30px_rgba(245,158,11,0.15)] relative overflow-hidden flex flex-col justify-between">
+              <div class="absolute top-0 right-0 px-4 py-1.5 bg-gradient-to-l from-amber-500 to-yellow-500 text-black font-extrabold text-[11px] rounded-bl-2xl">
+                KHUYÊN DÙNG
+              </div>
+              <div>
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 text-2xl shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+                    <i class="fa-solid fa-crown"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-bold text-white">Tài Khoản VIP</h3>
+                    <p class="text-xs text-amber-300 font-medium">Kích hoạt nhanh chóng bằng Key VIP</p>
+                  </div>
+                </div>
+                <ul class="space-y-2.5 text-xs text-gray-300 mt-4">
+                  <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-amber-400"></i> <strong>Cộng dồn thời hạn 30 ngày:</strong> Nạp nhiều key sẽ tự động kéo dài ngày sử dụng.</li>
+                  <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-amber-400"></i> <strong>Dịch tức thì:</strong> Không cần vượt link, không cần chờ đợi.</li>
+                  <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-amber-400"></i> <strong>Lưu trữ trên Server:</strong> Đăng nhập thiết bị khác vẫn giữ trọn thời hạn.</li>
+                </ul>
+              </div>
+              <div class="mt-5 pt-4 border-t border-amber-500/20 text-xs font-mono text-amber-300/80 flex items-center justify-between">
+                <span>Tier 1 đến Tier 5 (5 ngày - 365 ngày)</span>
+                <span class="font-bold text-amber-400">Cộng dồn ngày</span>
+              </div>
+            </div>
+
+            <!-- Free Account & Link Gate -->
+            <div class="bg-gray-900/80 border border-gray-800 rounded-3xl p-6 backdrop-blur-xl shadow-xl flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-2xl">
+                    <i class="fa-solid fa-unlock-keyhole"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-bold text-white">Mở Khóa Miễn Phí (Link Gate)</h3>
+                    <p class="text-xs text-cyan-300 font-medium">Bất kỳ ai cũng có thể sử dụng 100% miễn phí</p>
+                  </div>
+                </div>
+                <ul class="space-y-2.5 text-xs text-gray-300 mt-4">
+                  <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-cyan-400"></i> <strong>Vượt link lấy mã:</strong> Mở trang rút gọn link để nhận mã mở khóa.</li>
+                  <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-cyan-400"></i> <strong>Xác thực an toàn ở Server:</strong> Mã passcode được mã hóa kiểm tra nội bộ.</li>
+                  <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-cyan-400"></i> <strong>Bảo mật JWT &amp; HTTP-only cookie:</strong> Bảo vệ tài khoản và phiên làm việc.</li>
+                </ul>
+              </div>
+              <div class="mt-5 pt-4 border-t border-gray-800 text-xs font-mono text-gray-400 flex items-center justify-between">
+                <span>Thời hạn mở khóa: 60 phút / lần</span>
+                <span class="text-cyan-400 font-bold">100% Miễn phí</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCENE 5: LIVE WORKFLOW DEMO (QUY TRÌNH SỬ DỤNG THỰC TẾ) -->
+        <div id="scene5" class="scene-view w-full h-full hidden flex-col justify-center relative z-10">
+          <div class="text-center mb-5">
+            <h2 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Quy Trình Hoạt Động <span class="text-emerald-400">&amp; Chỉnh Sửa Trực Tiếp</span>
+            </h2>
+            <p class="text-gray-400 text-xs sm:text-sm mt-1">Từ tệp mod thô đến gói ngôn ngữ hoàn hảo chỉ trong vài bước</p>
+          </div>
+
+          <!-- Step Progression Flow -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto w-full">
+            <!-- Step 1 -->
+            <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 backdrop-blur-xl">
+              <div class="flex items-center gap-2 mb-2 font-bold text-sm text-emerald-400">
+                <span class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs">1</span>
+                Kéo Thả Mod &amp; Quét
+              </div>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Tự động bóc tách file <code class="text-emerald-300 font-mono">.mcpack, .mcaddon</code>, đếm số dòng chuỗi ngôn ngữ và script menu.
+              </p>
+              <div class="mt-3 bg-gray-950 p-2 rounded-lg border border-gray-800 text-[11px] font-mono text-gray-400 flex items-center gap-2">
+                <i class="fa-solid fa-file-zipper text-emerald-400"></i> magic_mod.mcpack (12.4 MB)
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="bg-gray-900/80 border border-emerald-500/40 rounded-2xl p-4 backdrop-blur-xl shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+              <div class="flex items-center gap-2 mb-2 font-bold text-sm text-emerald-400">
+                <span class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs">2</span>
+                Dịch Tự Động (SSE Stream)
+              </div>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Server-Sent Events truyền dữ liệu dịch theo thời gian thực với thanh tiến trình trực quan.
+              </p>
+              <!-- Progress Mockup -->
+              <div class="mt-3 space-y-1">
+                <div class="flex justify-between text-[11px] font-mono text-gray-300">
+                  <span>Tiến độ dịch</span>
+                  <span class="text-emerald-400 font-bold">100% HOÀN TẤT</span>
+                </div>
+                <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                  <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full w-full"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 backdrop-blur-xl">
+              <div class="flex items-center gap-2 mb-2 font-bold text-sm text-emerald-400">
+                <span class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs">3</span>
+                Sửa Trực Tiếp &amp; Tải Về
+              </div>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Nhấp chuột vào từng dòng trong bảng xem trước để tinh chỉnh từ ngữ theo sở thích trước khi xuất file mod.
+              </p>
+              <div class="mt-3 bg-emerald-500/10 border border-emerald-500/30 p-2 rounded-lg text-[11px] text-emerald-300 font-bold flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-download"></i> Tải Về File Mod Hoàn Chỉnh
+              </div>
+            </div>
+          </div>
+
+          <!-- Inline Edit Table Preview Mockup -->
+          <div class="mt-5 max-w-4xl mx-auto w-full bg-gray-950/90 border border-gray-800 rounded-xl overflow-hidden text-xs">
+            <div class="bg-gray-900 px-4 py-2 border-b border-gray-800 flex items-center justify-between text-gray-400 font-mono text-[11px]">
+              <span>BẢNG XEM TRƯỚC BẢN DỊCH (CLICK ĐỂ SỬA TRỰC TIẾP)</span>
+              <span class="text-emerald-400">Editable Table Demo</span>
+            </div>
+            <div class="divide-y divide-gray-800/80">
+              <div class="px-4 py-2 flex items-center justify-between">
+                <span class="font-mono text-gray-500 w-1/4">item.ruby_sword.name</span>
+                <span class="text-gray-300 w-1/3">Ruby Sword</span>
+                <span class="text-emerald-400 font-semibold w-1/3 cursor-pointer hover:underline flex items-center gap-1">
+                  Kiếm Hồng Ngọc <i class="fa-solid fa-pencil text-[10px] text-gray-500"></i>
+                </span>
+              </div>
+              <div class="px-4 py-2 flex items-center justify-between bg-gray-900/40">
+                <span class="font-mono text-gray-500 w-1/4">menu.shop.buy</span>
+                <span class="text-gray-300 w-1/3">Purchase Upgrades</span>
+                <span class="text-emerald-400 font-semibold w-1/3 cursor-pointer hover:underline flex items-center gap-1">
+                  Mua Nâng Cấp <i class="fa-solid fa-pencil text-[10px] text-gray-500"></i>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCENE 6: OUTRO & CALL TO ACTION (KHỞI ĐỘNG 1-CLICK & LỜI KẾT) -->
+        <div id="scene6" class="scene-view w-full h-full hidden flex-col items-center justify-center text-center relative z-10">
+          <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-teal-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 text-3xl mb-5 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+            <i class="fa-solid fa-play"></i>
+          </div>
+
+          <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-3">
+            Khởi Động <span class="text-emerald-400">1 Cú Click</span> Bằng <span class="text-amber-400 font-mono">start.bat</span>
+          </h2>
+
+          <p class="text-gray-300 text-sm sm:text-base max-w-xl mx-auto mb-8 font-light">
+            Không cần cài đặt rườm rà. Chạy ngay trên máy tính của bạn và mở trình duyệt tại cổng 8080!
+          </p>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-wrap items-center justify-center gap-3.5">
+            <a href="/" class="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-gray-950 font-extrabold text-sm transition-all shadow-[0_0_25px_rgba(16,185,129,0.4)] flex items-center gap-2">
+              <i class="fa-solid fa-rocket"></i>
+              <span>Vào Trang Dịch Mod Ngay</span>
+            </a>
+
+            <button id="btnReplayVideo" class="px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white font-semibold text-sm transition-all flex items-center gap-2">
+              <i class="fa-solid fa-arrow-rotate-left"></i>
+              <span>Xem Lại Từ Đầu</span>
+            </button>
+          </div>
+
+          <div class="mt-8 text-xs text-gray-500 font-mono">
+            Node.js + Express 5 • MCPE Bedrock Tool • Localhost:8080
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Synchronized Subtitle Banner -->
+      <div class="bg-gray-900/95 border-t border-gray-800/80 px-4 sm:px-6 py-3 flex items-center justify-center text-center min-h-[56px]">
+        <p id="subtitleText" class="text-sm sm:text-base font-medium text-emerald-300 drop-shadow-md leading-relaxed">
+          Chào mừng các bạn đến với MCPE Mod Translator, công cụ tự động dịch toàn diện dành cho Mod, Addon và Menu Minecraft Bedrock.
+        </p>
+      </div>
+
+      <!-- Player Control Bar -->
+      <div class="bg-gray-950 px-4 sm:px-6 py-3 border-t border-gray-800 flex flex-col gap-2.5">
+        
+        <!-- Timeline Progress Bar -->
+        <div class="flex items-center gap-3">
+          <span id="timeCurrent" class="text-xs font-mono text-gray-400 w-10 text-right">0:00</span>
+          
+          <div id="timelineContainer" class="relative flex-1 h-2.5 bg-gray-800 hover:h-3.5 rounded-full cursor-pointer transition-all overflow-hidden group">
+            <div id="timelineProgress" class="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 rounded-full w-0 transition-all duration-100"></div>
+            <!-- Scene Markers -->
+            <div class="absolute inset-0 flex justify-between pointer-events-none px-1">
+              <span class="w-1 h-full bg-gray-900/80"></span>
+              <span class="w-1 h-full bg-gray-900/80"></span>
+              <span class="w-1 h-full bg-gray-900/80"></span>
+              <span class="w-1 h-full bg-gray-900/80"></span>
+              <span class="w-1 h-full bg-gray-900/80"></span>
+            </div>
+          </div>
+
+          <span id="timeTotal" class="text-xs font-mono text-gray-400 w-10">2:15</span>
+        </div>
+
+        <!-- Controls Row -->
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          
+          <!-- Left: Play/Pause, Prev, Next -->
+          <div class="flex items-center gap-2">
+            <button id="btnPrevScene" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center text-xs transition-all" title="Cảnh trước">
+              <i class="fa-solid fa-backward-step"></i>
+            </button>
+            <button id="btnPlayPause" class="w-10 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-gray-950 flex items-center justify-center text-sm font-bold transition-all shadow-[0_0_15px_rgba(16,185,129,0.4)]" title="Phát / Tạm dừng">
+              <i id="playIcon" class="fa-solid fa-play"></i>
+            </button>
+            <button id="btnNextScene" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center text-xs transition-all" title="Cảnh tiếp theo">
+              <i class="fa-solid fa-forward-step"></i>
+            </button>
+          </div>
+
+          <!-- Center: Scene Quick Jump Tabs -->
+          <div class="hidden sm:flex items-center gap-1.5 bg-gray-900/90 p-1 rounded-xl border border-gray-800 text-xs">
+            <button class="scene-tab px-2.5 py-1 rounded-lg text-emerald-400 font-bold bg-gray-800 border border-gray-700 transition-all" data-scene="0">1. Giới thiệu</button>
+            <button class="scene-tab px-2.5 py-1 rounded-lg text-gray-400 hover:text-white transition-all" data-scene="1">2. AI Xây Dựng</button>
+            <button class="scene-tab px-2.5 py-1 rounded-lg text-gray-400 hover:text-white transition-all" data-scene="2">3. Tính Năng</button>
+            <button class="scene-tab px-2.5 py-1 rounded-lg text-gray-400 hover:text-white transition-all" data-scene="3">4. VIP &amp; Link</button>
+            <button class="scene-tab px-2.5 py-1 rounded-lg text-gray-400 hover:text-white transition-all" data-scene="4">5. Quy Trình</button>
+            <button class="scene-tab px-2.5 py-1 rounded-lg text-gray-400 hover:text-white transition-all" data-scene="5">6. Kết Luận</button>
+          </div>
+
+          <!-- Right: Volume, Speed & Fullscreen -->
+          <div class="flex items-center gap-2.5">
+            <!-- Speed Selector -->
+            <button id="btnSpeed" class="px-2 py-1 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono transition-all" title="Tốc độ phát">
+              1.0x
+            </button>
+
+            <!-- Fullscreen -->
+            <button id="btnFullscreen" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center text-xs transition-all" title="Toàn màn hình">
+              <i class="fa-solid fa-expand"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Below Video: Feature Summary & Quick Guide -->
+    <div class="w-full mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-gray-900/60 border border-gray-800/80 rounded-2xl p-5 backdrop-blur-xl">
+        <div class="text-emerald-400 font-bold text-sm mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-microphone-lines"></i>
+          Lời Thoại &amp; Âm Thanh Tự Động
+        </div>
+        <p class="text-gray-400 text-xs leading-relaxed">
+          Tích hợp thuyết minh tiếng Việt chuẩn xác cho từng cảnh, kết hợp cùng visualizer âm thanh và phụ đề trực quan theo thời gian thực.
+        </p>
+      </div>
+
+      <div class="bg-gray-900/60 border border-gray-800/80 rounded-2xl p-5 backdrop-blur-xl">
+        <div class="text-amber-400 font-bold text-sm mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-brain"></i>
+          Cảnh AI Kiến Tạo Trực Quan
+        </div>
+        <p class="text-gray-400 text-xs leading-relaxed">
+          Mô phỏng chân thực quy trình AI lập trình các bộ bóc tách AST, mã nguồn Express, bảo vệ mã màu § và luồng truyền Server-Sent Events.
+        </p>
+      </div>
+
+      <div class="bg-gray-900/60 border border-gray-800/80 rounded-2xl p-5 backdrop-blur-xl">
+        <div class="text-cyan-400 font-bold text-sm mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-download"></i>
+          Xuất Video Tức Thì
+        </div>
+        <p class="text-gray-400 text-xs leading-relaxed">
+          Bạn có thể nhấn nút <strong>"Xuất Video"</strong> ở thanh trên để ghi lại toàn bộ video có âm thanh thuyết minh và tải file về máy tính.
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Audio Element for Voice Narration -->
+  <audio id="voiceAudio" preload="auto"></audio>
+
+  <!-- JavaScript Player Logic -->
+  <script>
+    // Manifest of scenes
+    const SCENES = [
+      {
+        id: 'scene1',
+        title: 'Cảnh 1/6: Giới Thiệu MCPE Mod Translator',
+        audio: 'video_assets/audio/scene1.mp3',
+        durationEstimate: 14,
+        subtitle: 'Chào mừng các bạn đến với MCPE Mod Translator, công cụ tự động dịch toàn diện dành cho Mod, Addon và Menu Minecraft Bedrock. Ứng dụng giúp bạn chuyển đổi ngôn ngữ mọi bản mod sang tiếng Việt chỉ với một cú nhấp chuột.'
+      },
+      {
+        id: 'scene2',
+        title: 'Cảnh 2/6: Cảnh AI Xây Dựng Hệ Thống',
+        audio: 'video_assets/audio/scene2.mp3',
+        durationEstimate: 21,
+        subtitle: 'Hệ thống được AI kiến tạo từ nền tảng Node.js và Express. AI đã tự động xây dựng các bộ phân tích cú pháp nâng cao: bóc tách file lang, quét AST giao diện menu JavaScript Bedrock Script API, phân tích JSON UI và cấu hình luồng truyền dữ liệu thời gian thực Server-Sent Events cực kỳ mượt mà.'
+      },
+      {
+        id: 'scene3',
+        title: 'Cảnh 3/6: Tính Năng Dịch Toàn Diện',
+        audio: 'video_assets/audio/scene3.mp3',
+        durationEstimate: 17,
+        subtitle: 'Ứng dụng hỗ trợ trọn gói các định dạng mcpack, mcaddon và file zip. Điểm đặc biệt là khả năng dịch chính xác menu JavaScript, tin nhắn chat và giao diện tùy chỉnh, đồng thời bảo tồn một trăm phần trăm các mã màu Minecraft và biến định dạng, đảm bảo mod vận hành trơn tru không lỗi.'
+      },
+      {
+        id: 'scene4',
+        title: 'Cảnh 4/6: Tài Khoản, VIP Key & Vượt Link',
+        audio: 'video_assets/audio/scene4.mp3',
+        durationEstimate: 15,
+        subtitle: 'Hệ thống trang bị tính năng tài khoản bảo mật bằng JWT và Cookie an toàn. Người dùng có thể nâng cấp VIP với key cộng dồn thời hạn ba mươi ngày để dịch không giới hạn, hoặc mở khóa dịch miễn phí thông qua cổng vượt link kiểm tra an toàn tại máy chủ.'
+      },
+      {
+        id: 'scene5',
+        title: 'Cảnh 5/6: Quy Trình Dịch & Sửa Trực Tiếp',
+        audio: 'video_assets/audio/scene5.mp3',
+        durationEstimate: 15,
+        subtitle: 'Quy trình sử dụng vô cùng đơn giản: Kéo thả file mod vào trang web, theo dõi tiến trình dịch trực tiếp theo thời gian thực. Đặc biệt, bạn có thể nhấp chuột trực tiếp vào từng dòng trong bảng xem trước để chỉnh sửa theo ý muốn trước khi tải về file mod hoàn chỉnh.'
+      },
+      {
+        id: 'scene6',
+        title: 'Cảnh 6/6: Khởi Động 1-Click & Lời Kết',
+        audio: 'video_assets/audio/scene6.mp3',
+        durationEstimate: 14,
+        subtitle: 'Để bắt đầu, bạn chỉ cần nhấp đúp vào file start.bat để khởi chạy ứng dụng trên cổng tám mươi tám mươi. Hãy trải nghiệm ngay MCPE Mod Translator để mang những bản mod tuyệt vời nhất về với cộng đồng Minecraft Việt Nam!'
+      }
+    ];
+
+    let currentSceneIndex = 0;
+    let isPlaying = false;
+    let playbackSpeed = 1.0;
+    let bgmEnabled = true;
+    let audioContext = null;
+    let bgmGainNode = null;
+    let bgmOscillators = [];
+    let bgmInterval = null;
+
+    // DOM Elements
+    const voiceAudio = document.getElementById('voiceAudio');
+    const btnPlayPause = document.getElementById('btnPlayPause');
+    const playIcon = document.getElementById('playIcon');
+    const btnPrevScene = document.getElementById('btnPrevScene');
+    const btnNextScene = document.getElementById('btnNextScene');
+    const btnSpeed = document.getElementById('btnSpeed');
+    const btnFullscreen = document.getElementById('btnFullscreen');
+    const btnToggleBgm = document.getElementById('btnToggleBgm');
+    const bgmLabel = document.getElementById('bgmLabel');
+    const subtitleText = document.getElementById('subtitleText');
+    const currentSceneTag = document.getElementById('currentSceneTag');
+    const timeCurrent = document.getElementById('timeCurrent');
+    const timeTotal = document.getElementById('timeTotal');
+    const timelineContainer = document.getElementById('timelineContainer');
+    const timelineProgress = document.getElementById('timelineProgress');
+    const sceneTabs = document.querySelectorAll('.scene-tab');
+    const voiceStatusText = document.getElementById('voiceStatusText');
+    const btnReplayVideo = document.getElementById('btnReplayVideo');
+    const btnExportVideo = document.getElementById('btnExportVideo');
+    const exportBtnLabel = document.getElementById('exportBtnLabel');
+
+    // Approximate total time
+    const TOTAL_SECONDS = SCENES.reduce((acc, s) => acc + s.durationEstimate, 0);
+    timeTotal.textContent = formatTime(TOTAL_SECONDS);
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // Audio frequency visualizer bars animation
+    function updateVisualizer(active) {
+      const bars = document.querySelectorAll('#audioBars span');
+      bars.forEach(b => {
+        if (active) {
+          const h = Math.floor(Math.random() * 12) + 2;
+          b.style.height = `${h}px`;
+        } else {
+          b.style.height = '4px';
+        }
+      });
+    }
+
+    let visualizerTimer = null;
+    function startVisualizer() {
+      if (visualizerTimer) clearInterval(visualizerTimer);
+      visualizerTimer = setInterval(() => updateVisualizer(isPlaying), 100);
+    }
+
+    // Web Audio Synthesizer for Ambient BGM
+    function initWebAudio() {
+      if (!audioContext) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioCtx();
+        bgmGainNode = audioContext.createGain();
+        bgmGainNode.gain.setValueAtTime(0.08, audioContext.currentTime); // Soft ambient volume
+        bgmGainNode.connect(audioContext.destination);
+      }
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    }
+
+    // Gentle ambient synth chords (cyber/minecraft ambient)
+    function playAmbientChord() {
+      if (!bgmEnabled || !audioContext || !isPlaying) return;
+      const chords = [
+        [220.00, 261.63, 329.63, 392.00], // Am7
+        [174.61, 220.00, 261.63, 329.63], // Fmaj7
+        [196.00, 246.94, 293.66, 392.00], // G
+        [164.81, 207.65, 246.94, 329.63]  // Em
+      ];
+      const chord = chords[Math.floor(Math.random() * chords.length)];
+      chord.forEach(freq => {
+        try {
+          const osc = audioContext.createOscillator();
+          const noteGain = audioContext.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+
+          noteGain.gain.setValueAtTime(0.001, audioContext.currentTime);
+          noteGain.gain.exponentialRampToValueAtTime(0.03, audioContext.currentTime + 1.2);
+          noteGain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 5.5);
+
+          osc.connect(noteGain);
+          noteGain.connect(bgmGainNode);
+          osc.start();
+          osc.stop(audioContext.currentTime + 6.0);
+        } catch (e) {}
+      });
+    }
+
+    function startBgm() {
+      initWebAudio();
+      if (bgmInterval) clearInterval(bgmInterval);
+      playAmbientChord();
+      bgmInterval = setInterval(playAmbientChord, 5000);
+    }
+
+    function stopBgm() {
+      if (bgmInterval) clearInterval(bgmInterval);
+    }
+
+    // Switch Scene Display
+    function switchScene(index, autoPlay = true) {
+      if (index < 0) index = 0;
+      if (index >= SCENES.length) index = SCENES.length - 1;
+
+      currentSceneIndex = index;
+      const scene = SCENES[index];
+
+      // Update Scene DOM Visibility
+      for (let i = 1; i <= SCENES.length; i++) {
+        const el = document.getElementById(`scene${i}`);
+        if (el) {
+          if (i === index + 1) {
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+          } else {
+            el.classList.remove('flex');
+            el.classList.add('hidden');
+          }
+        }
+      }
+
+      // Update Scene Tabs
+      sceneTabs.forEach((tab, i) => {
+        if (i === index) {
+          tab.classList.add('text-emerald-400', 'font-bold', 'bg-gray-800', 'border', 'border-gray-700');
+          tab.classList.remove('text-gray-400');
+        } else {
+          tab.classList.remove('text-emerald-400', 'font-bold', 'bg-gray-800', 'border', 'border-gray-700');
+          tab.classList.add('text-gray-400');
+        }
+      });
+
+      // Update Subtitle & Title
+      currentSceneTag.textContent = scene.title;
+      subtitleText.textContent = scene.subtitle;
+
+      // Special Scene Effects: Scene 2 Terminal Code Auto-scroll
+      if (index === 1) {
+        const term = document.getElementById('aiTerminalCode');
+        if (term) term.scrollTop = 0;
+      }
+
+      // Setup Audio
+      voiceAudio.src = scene.audio;
+      voiceAudio.playbackRate = playbackSpeed;
+
+      if (autoPlay && isPlaying) {
+        initWebAudio();
+        voiceAudio.play().then(() => {
+          voiceStatusText.textContent = `Voice: Đang phát (Cảnh ${index + 1})`;
+        }).catch(err => {
+          console.warn('Voice play blocked or error:', err);
+          voiceStatusText.textContent = 'Voice: Click để phát';
+        });
+      }
+    }
+
+    // Play/Pause Action
+    function togglePlayPause() {
+      initWebAudio();
+      if (!isPlaying) {
+        isPlaying = true;
+        playIcon.classList.remove('fa-play');
+        playIcon.classList.add('fa-pause');
+        if (bgmEnabled) startBgm();
+        startVisualizer();
+
+        voiceAudio.playbackRate = playbackSpeed;
+        voiceAudio.play().then(() => {
+          voiceStatusText.textContent = `Voice: Đang phát (Cảnh ${currentSceneIndex + 1})`;
+        }).catch(err => {
+          console.log('Audio autoplay policy:', err);
+        });
+      } else {
+        isPlaying = false;
+        playIcon.classList.remove('fa-pause');
+        playIcon.classList.add('fa-play');
+        voiceAudio.pause();
+        stopBgm();
+        updateVisualizer(false);
+        voiceStatusText.textContent = 'Voice: Đã dừng';
+      }
+    }
+
+    // Scene Transition when current audio finishes
+    voiceAudio.addEventListener('ended', () => {
+      if (currentSceneIndex < SCENES.length - 1) {
+        switchScene(currentSceneIndex + 1, true);
+      } else {
+        // Finished all scenes
+        isPlaying = false;
+        playIcon.classList.remove('fa-pause');
+        playIcon.classList.add('fa-play');
+        stopBgm();
+        updateVisualizer(false);
+        voiceStatusText.textContent = 'Voice: Hoàn tất video';
+      }
+    });
+
+    // Timeline Update
+    voiceAudio.addEventListener('timeupdate', () => {
+      // Calculate elapsed seconds across all preceding scenes
+      let priorSeconds = 0;
+      for (let i = 0; i < currentSceneIndex; i++) {
+        priorSeconds += SCENES[i].durationEstimate;
+      }
+      const curSceneElapsed = voiceAudio.currentTime || 0;
+      const totalElapsed = priorSeconds + curSceneElapsed;
+      timeCurrent.textContent = formatTime(totalElapsed);
+
+      const percent = Math.min(100, (totalElapsed / TOTAL_SECONDS) * 100);
+      timelineProgress.style.width = `${percent}%`;
+
+      // Auto-scroll terminal in Scene 2 along with audio time
+      if (currentSceneIndex === 1 && voiceAudio.duration) {
+        const term = document.getElementById('aiTerminalCode');
+        if (term) {
+          const scrollPct = curSceneElapsed / voiceAudio.duration;
+          term.scrollTop = scrollPct * (term.scrollHeight - term.clientHeight);
+        }
+      }
+    });
+
+    // Event Listeners for Controls
+    btnPlayPause.addEventListener('click', togglePlayPause);
+
+    btnPrevScene.addEventListener('click', () => {
+      if (currentSceneIndex > 0) switchScene(currentSceneIndex - 1, isPlaying);
+    });
+
+    btnNextScene.addEventListener('click', () => {
+      if (currentSceneIndex < SCENES.length - 1) switchScene(currentSceneIndex + 1, isPlaying);
+    });
+
+    sceneTabs.forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.scene, 10);
+        switchScene(idx, isPlaying);
+      });
+    });
+
+    if (btnReplayVideo) {
+      btnReplayVideo.addEventListener('click', () => {
+        switchScene(0, true);
+        if (!isPlaying) togglePlayPause();
+      });
+    }
+
+    // Speed Control Toggle
+    btnSpeed.addEventListener('click', () => {
+      const speeds = [1.0, 1.25, 1.5];
+      const nextIdx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
+      playbackSpeed = speeds[nextIdx];
+      btnSpeed.textContent = `${playbackSpeed.toFixed(1)}x`;
+      voiceAudio.playbackRate = playbackSpeed;
+    });
+
+    // BGM Toggle
+    btnToggleBgm.addEventListener('click', () => {
+      bgmEnabled = !bgmEnabled;
+      if (bgmEnabled) {
+        bgmLabel.textContent = 'Nhạc nền: BẬT';
+        btnToggleBgm.classList.remove('opacity-50');
+        if (isPlaying) startBgm();
+      } else {
+        bgmLabel.textContent = 'Nhạc nền: TẮT';
+        btnToggleBgm.classList.add('opacity-50');
+        stopBgm();
+      }
+    });
+
+    // Fullscreen Toggle
+    btnFullscreen.addEventListener('click', () => {
+      const container = document.getElementById('videoContainer');
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+          alert('Không thể vào chế độ toàn màn hình: ' + err.message);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === 'ArrowRight') {
+        if (currentSceneIndex < SCENES.length - 1) switchScene(currentSceneIndex + 1, isPlaying);
+      } else if (e.code === 'ArrowLeft') {
+        if (currentSceneIndex > 0) switchScene(currentSceneIndex - 1, isPlaying);
+      } else if (e.code === 'KeyF') {
+        btnFullscreen.click();
+      }
+    });
+
+    // Particle Background Effect Canvas
+    const bgCanvas = document.getElementById('bgCanvas');
+    const ctx = bgCanvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      bgCanvas.width = window.innerWidth;
+      bgCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * bgCanvas.width;
+        this.y = Math.random() * bgCanvas.height;
+        this.size = Math.random() * 2 + 0.8;
+        this.speedX = (Math.random() - 0.5) * 0.4;
+        this.speedY = (Math.random() - 0.5) * 0.4;
+        this.color = Math.random() > 0.4 ? 'rgba(16, 185, 129, ' : 'rgba(6, 182, 212, ';
+        this.alpha = Math.random() * 0.5 + 0.1;
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        if (this.x < 0) this.x = bgCanvas.width;
+        if (this.x > bgCanvas.width) this.x = 0;
+        if (this.y < 0) this.y = bgCanvas.height;
+        if (this.y > bgCanvas.height) this.y = 0;
+      }
+      draw() {
+        ctx.fillStyle = this.color + this.alpha + ')';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < 45; i++) {
+      particles.push(new Particle());
+    }
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+
+    // ==========================================
+    // VIDEO EXPORT SYSTEM (MediaRecorder API)
+    // ==========================================
+    let isExporting = false;
+    let exportRecorder = null;
+    let recordedChunks = [];
+
+    btnExportVideo.addEventListener('click', async () => {
+      if (isExporting) return;
+      
+      const confirmExport = confirm('Bắt đầu xuất video trình chiếu (bao gồm âm thanh và các cảnh)? Quá trình sẽ phát tự động từ đầu đến cuối và lưu file .webm / .mp4 vào máy bạn.');
+      if (!confirmExport) return;
+
+      try {
+        isExporting = true;
+        exportBtnLabel.textContent = 'Đang ghi hình video...';
+        btnExportVideo.classList.add('animate-pulse');
+
+        // Rewind to scene 0
+        switchScene(0, false);
+
+        // Capture stage element using canvas render or displayMedia
+        // Create an offscreen recording canvas
+        const recordCanvas = document.createElement('canvas');
+        recordCanvas.width = 1280;
+        recordCanvas.height = 720;
+        const rCtx = recordCanvas.getContext('2d');
+
+        // Setup audio capture stream
+        initWebAudio();
+        const dest = audioContext.createMediaStreamDestination();
+        
+        // Connect voice audio to dest
+        const audioSource = audioContext.createMediaElementSource(voiceAudio);
+        audioSource.connect(dest);
+        audioSource.connect(audioContext.destination);
+
+        // Mix in BGM if enabled
+        if (bgmGainNode) {
+          bgmGainNode.connect(dest);
+        }
+
+        const videoStream = recordCanvas.captureStream(30); // 30 FPS
+        const combinedStream = new MediaStream([
+          ...videoStream.getVideoTracks(),
+          ...dest.stream.getAudioTracks()
+        ]);
+
+        let mimeType = 'video/webm;codecs=vp9,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+
+        exportRecorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 3000000 });
+        recordedChunks = [];
+
+        exportRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        exportRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `MCPE_Mod_Translator_Presentation_${Date.now()}.webm`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          isExporting = false;
+          exportBtnLabel.textContent = 'Xuất Video (MP4 / WebM)';
+          btnExportVideo.classList.remove('animate-pulse');
+          alert('✓ Đã xuất và tải video thành công vào máy của bạn!');
+        };
+
+        // Render animation loop onto recordCanvas
+        function drawFrame() {
+          if (!isExporting) return;
+          // Draw dark background gradient
+          const grad = rCtx.createLinearGradient(0, 0, 1280, 720);
+          grad.addColorStop(0, '#070b14');
+          grad.addColorStop(0.5, '#090e1c');
+          grad.addColorStop(1, '#04070e');
+          rCtx.fillStyle = grad;
+          rCtx.fillRect(0, 0, 1280, 720);
+
+          // Draw Glowing Banner Header
+          rCtx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+          rCtx.fillRect(40, 30, 1200, 50);
+          rCtx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+          rCtx.strokeRect(40, 30, 1200, 50);
+
+          rCtx.fillStyle = '#10b981';
+          rCtx.font = 'bold 22px Outfit, sans-serif';
+          rCtx.fillText('MCPE MOD & MENU AUTO-TRANSLATOR', 60, 63);
+
+          rCtx.fillStyle = '#f59e0b';
+          rCtx.font = 'bold 16px Outfit, sans-serif';
+          rCtx.fillText(`[${SCENES[currentSceneIndex].title}]`, 900, 62);
+
+          // Draw Main Scene Content Box
+          rCtx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+          rCtx.fillRect(40, 100, 1200, 500);
+          rCtx.strokeStyle = 'rgba(30, 41, 59, 0.8)';
+          rCtx.strokeRect(40, 100, 1200, 500);
+
+          // Scene 1 Content
+          if (currentSceneIndex === 0) {
+            rCtx.fillStyle = '#ffffff';
+            rCtx.font = 'bold 44px Outfit, sans-serif';
+            rCtx.textAlign = 'center';
+            rCtx.fillText('TỰ ĐỘNG DỊCH MOD & MENU MINECRAFT PE', 640, 240);
+
+            rCtx.fillStyle = '#10b981';
+            rCtx.font = 'bold 26px Outfit, sans-serif';
+            rCtx.fillText('Giải Pháp Dịch Thuật Đột Phá Chuẩn Minecraft Bedrock', 640, 300);
+
+            rCtx.fillStyle = '#94a3b8';
+            rCtx.font = '20px Outfit, sans-serif';
+            rCtx.fillText('✓ Dịch texts/*.lang  •  ✓ Dịch Menu JS (@minecraft/server-ui)', 640, 370);
+            rCtx.fillText('✓ Bảo vệ mã màu §a  •  ✓ Hỗ trợ .mcpack, .mcaddon, .zip', 640, 410);
+            rCtx.fillText('✓ Hệ thống tài khoản, VIP Key 30 ngày & Link Gate an toàn', 640, 450);
+            rCtx.textAlign = 'left';
+          } 
+          // Scene 2 Content (AI Building)
+          else if (currentSceneIndex === 1) {
+            rCtx.fillStyle = '#a855f7';
+            rCtx.font = 'bold 24px monospace';
+            rCtx.fillText('[AI ANTIGRAVITY INITIALIZING SYSTEM ARCHITECTURE]', 80, 160);
+
+            rCtx.fillStyle = '#38bdf8';
+            rCtx.font = '18px monospace';
+            rCtx.fillText('> Express 5 Server Engine & Worker Threads configured', 80, 210);
+            rCtx.fillText('> AST Bedrock Script API Parser: Hooking @minecraft/server-ui', 80, 250);
+            rCtx.fillText('> Form Extractor: ActionFormData, ModalFormData, MessageFormData', 80, 290);
+            rCtx.fillText('> Color Shield: Preserving Minecraft Color Codes (§0-§f, §l, %s)', 80, 330);
+            rCtx.fillText('> Security Layer: JWT Authentication & 30-Day Cumulative VIP Keys', 80, 370);
+            rCtx.fillText('> SSE Pipeline: Real-Time Stream translation with live progress', 80, 410);
+
+            rCtx.fillStyle = '#34d399';
+            rCtx.font = 'bold 20px monospace';
+            rCtx.fillText('✓ ALL MODULES COMPILED: Server live at http://localhost:8080', 80, 470);
+          }
+          // Scene 3 Content (Features)
+          else if (currentSceneIndex === 2) {
+            rCtx.fillStyle = '#ffffff';
+            rCtx.font = 'bold 36px Outfit, sans-serif';
+            rCtx.textAlign = 'center';
+            rCtx.fillText('SỨC MẠNH DỊCH THUẬT TOÀN DIỆN', 640, 170);
+
+            rCtx.textAlign = 'left';
+            rCtx.fillStyle = '#10b981';
+            rCtx.font = 'bold 22px Outfit, sans-serif';
+            rCtx.fillText('1. Dịch texts/*.lang chuẩn:', 80, 240);
+            rCtx.fillStyle = '#cbd5e1';
+            rCtx.font = '18px Outfit, sans-serif';
+            rCtx.fillText('   Tự động dịch vật phẩm, quặng, enchant và tạo file vi_VN.lang chuẩn', 80, 270);
+
+            rCtx.fillStyle = '#f59e0b';
+            rCtx.font = 'bold 22px Outfit, sans-serif';
+            rCtx.fillText('2. Dịch Menu JavaScript Bedrock Script API:', 80, 330);
+            rCtx.fillStyle = '#cbd5e1';
+            rCtx.font = '18px Outfit, sans-serif';
+            rCtx.fillText('   Dịch tiêu đề menu, nút bấm, dropdown, textfield - Bảo toàn 100% logic code', 80, 360);
+
+            rCtx.fillStyle = '#c084fc';
+            rCtx.font = 'bold 22px Outfit, sans-serif';
+            rCtx.fillText('3. Bảo vệ tuyệt đối mã màu § & Biến số định dạng:', 80, 420);
+            rCtx.fillStyle = '#cbd5e1';
+            rCtx.font = '18px Outfit, sans-serif';
+            rCtx.fillText('   Giữ nguyên mã màu §a, §c, §e, §l, %s, {0} - Mod chạy mượt mà không lỗi', 80, 450);
+          }
+          // Scene 4 Content (VIP & Link Gate)
+          else if (currentSceneIndex === 3) {
+            rCtx.fillStyle = '#ffffff';
+            rCtx.font = 'bold 36px Outfit, sans-serif';
+            rCtx.textAlign = 'center';
+            rCtx.fillText('HỆ THỐNG TÀI KHOẢN, VIP KEY & LINK GATE', 640, 170);
+
+            rCtx.textAlign = 'left';
+            // VIP Box
+            rCtx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+            rCtx.fillRect(80, 220, 520, 300);
+            rCtx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+            rCtx.strokeRect(80, 220, 520, 300);
+            rCtx.fillStyle = '#fbbf24';
+            rCtx.font = 'bold 24px Outfit, sans-serif';
+            rCtx.fillText('👑 TÀI KHOẢN VIP HOÀNG GIA', 110, 270);
+            rCtx.fillStyle = '#fde68a';
+            rCtx.font = '18px Outfit, sans-serif';
+            rCtx.fillText('• Key VIP mặc định 30 ngày', 110, 320);
+            rCtx.fillText('• Tính năng CỘNG DỒN THỜI HẠN', 110, 360);
+            rCtx.fillText('• Dịch trực tiếp không cần vượt link', 110, 400);
+            rCtx.fillText('• Lưu an toàn trên máy chủ', 110, 440);
+
+            // Free Box
+            rCtx.fillStyle = 'rgba(6, 182, 212, 0.15)';
+            rCtx.fillRect(680, 220, 520, 300);
+            rCtx.strokeStyle = 'rgba(6, 182, 212, 0.5)';
+            rCtx.strokeRect(680, 220, 520, 300);
+            rCtx.fillStyle = '#38bdf8';
+            rCtx.font = 'bold 24px Outfit, sans-serif';
+            rCtx.fillText('🔓 MỞ KHÓA MIỄN PHÍ (LINK GATE)', 710, 270);
+            rCtx.fillStyle = '#bae6fd';
+            rCtx.font = '18px Outfit, sans-serif';
+            rCtx.fillText('• 100% Miễn phí cho mọi người dùng', 710, 320);
+            rCtx.fillText('• Vượt link an toàn lấy mã passcode', 710, 360);
+            rCtx.fillText('• Xác thực mã bảo mật ở server', 710, 400);
+            rCtx.fillText('• Thời hạn 60 phút mỗi lần mở khóa', 710, 440);
+          }
+          // Scene 5 Content (Workflow & Inline Edit)
+          else if (currentSceneIndex === 4) {
+            rCtx.fillStyle = '#ffffff';
+            rCtx.font = 'bold 36px Outfit, sans-serif';
+            rCtx.textAlign = 'center';
+            rCtx.fillText('QUY TRÌNH HOẠT ĐỘNG & CHỈNH SỬA TRỰC TIẾP', 640, 170);
+
+            rCtx.textAlign = 'left';
+            rCtx.fillStyle = '#34d399';
+            rCtx.font = 'bold 20px Outfit, sans-serif';
+            rCtx.fillText('Bước 1: Kéo thả file mod .mcpack, .mcaddon hoặc .zip', 100, 240);
+            rCtx.fillStyle = '#38bdf8';
+            rCtx.fillText('Bước 2: Hệ thống quét & hiển thị thống kê dòng chuỗi', 100, 290);
+            rCtx.fillStyle = '#fbbf24';
+            rCtx.fillText('Bước 3: Chọn ngôn ngữ đích và bấm "Bắt Đầu Dịch Tự Động"', 100, 340);
+            rCtx.fillStyle = '#a78bfa';
+            rCtx.fillText('Bước 4: Theo dõi tiến độ thời gian thực (SSE Stream 0% - 100%)', 100, 390);
+            rCtx.fillStyle = '#f472b6';
+            rCtx.fillText('Bước 5: Nhấp chuột vào từng dòng để sửa trực tiếp (Inline Edit Table)', 100, 440);
+            rCtx.fillStyle = '#34d399';
+            rCtx.fillText('Bước 6: Tải về file Mod đã đóng gói hoàn chỉnh với 1 click!', 100, 490);
+          }
+          // Scene 6 Content (Outro)
+          else if (currentSceneIndex === 5) {
+            rCtx.fillStyle = '#ffffff';
+            rCtx.font = 'bold 44px Outfit, sans-serif';
+            rCtx.textAlign = 'center';
+            rCtx.fillText('KHỞI ĐỘNG 1-CLICK BẰNG FILE START.BAT', 640, 230);
+
+            rCtx.fillStyle = '#10b981';
+            rCtx.font = 'bold 26px Outfit, sans-serif';
+            rCtx.fillText('Trải Nghiệm Ngay Tại: http://localhost:8080', 640, 300);
+
+            rCtx.fillStyle = '#94a3b8';
+            rCtx.font = '20px Outfit, sans-serif';
+            rCtx.fillText('Chúc các bạn có những bản mod Minecraft tuyệt vời nhất!', 640, 380);
+            rCtx.fillText('Cảm ơn các bạn đã theo dõi video!', 640, 430);
+            rCtx.textAlign = 'left';
+          }
+
+          // Subtitle bar at bottom
+          rCtx.fillStyle = 'rgba(2, 6, 23, 0.95)';
+          rCtx.fillRect(40, 620, 1200, 70);
+          rCtx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+          rCtx.strokeRect(40, 620, 1200, 70);
+
+          rCtx.fillStyle = '#6ee7b7';
+          rCtx.font = '500 18px Outfit, sans-serif';
+          rCtx.textAlign = 'center';
+          rCtx.fillText(SCENES[currentSceneIndex].subtitle, 640, 662);
+          rCtx.textAlign = 'left';
+
+          requestAnimationFrame(drawFrame);
+        }
+
+        exportRecorder.start();
+        drawFrame();
+
+        // Start playback for recording
+        togglePlayPause();
+
+      } catch (err) {
+        console.error('Error starting video export:', err);
+        alert('Lỗi xuất video: ' + err.message);
+        isExporting = false;
+        exportBtnLabel.textContent = 'Xuất Video (MP4 / WebM)';
+        btnExportVideo.classList.remove('animate-pulse');
+      }
+    });
+
+    // Initialize Scene 0 on page load
+    switchScene(0, false);
+  </script>
+</body>
+</html>

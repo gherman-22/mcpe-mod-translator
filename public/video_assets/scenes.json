@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-10-04T15:30:52.197Z",
+  "scenes": [
+    {
+      "id": "scene1",
+      "title": "Giới Thiệu MCPE Mod Translator",
+      "text": "Chào mừng các bạn đến với MCPE Mod Translator, công cụ tự động dịch toàn diện dành cho Mod, Addon và Menu Minecraft Bedrock. Ứng dụng giúp bạn chuyển đổi ngôn ngữ mọi bản mod sang tiếng Việt chỉ với một cú nhấp chuột.",
+      "audioFile": "video_assets/audio/scene1.mp3"
+    },
+    {
+      "id": "scene2",
+      "title": "Cảnh AI Xây Dựng Hệ Thống",
+      "text": "Hệ thống được AI kiến tạo từ nền tảng Node.js và Express. AI đã tự động xây dựng các bộ phân tích cú pháp nâng cao: bóc tách file lang, quét AST giao diện menu JavaScript Bedrock Script API, phân tích JSON UI và cấu hình luồng truyền dữ liệu thời gian thực Server-Sent Events cực kỳ mượt mà.",
+      "audioFile": "video_assets/audio/scene2.mp3"
+    },
+    {
+      "id": "scene3",
+      "title": "Tính Năng Dịch Toàn Diện",
+      "text": "Ứng dụng hỗ trợ trọn gói các định dạng mcpack, mcaddon và file zip. Điểm đặc biệt là khả năng dịch chính xác menu JavaScript, tin nhắn chat và giao diện tùy chỉnh, đồng thời bảo tồn một trăm phần trăm các mã màu Minecraft và biến định dạng, đảm bảo mod vận hành trơn tru không lỗi.",
+      "audioFile": "video_assets/audio/scene3.mp3"
+    },
+    {
+      "id": "scene4",
+      "title": "Tài Khoản, VIP Key và Vượt Link",
+      "text": "Hệ thống trang bị tính năng tài khoản bảo mật bằng JWT và Cookie an toàn. Người dùng có thể nâng cấp VIP với key cộng dồn thời hạn ba mươi ngày để dịch không giới hạn, hoặc mở khóa dịch miễn phí thông qua cổng vượt link kiểm tra an toàn tại máy chủ.",
+      "audioFile": "video_assets/audio/scene4.mp3"
+    },
+    {
+      "id": "scene5",
+      "title": "Quy Trình Hoạt Động & Chỉnh Sửa Trực Tiếp",
+      "text": "Quy trình sử dụng vô cùng đơn giản: Kéo thả file mod vào trang web, theo dõi tiến trình dịch trực tiếp theo thời gian thực. Đặc biệt, bạn có thể nhấp chuột trực tiếp vào từng dòng trong bảng xem trước để chỉnh sửa theo ý muốn trước khi tải về file mod hoàn chỉnh.",
+      "audioFile": "video_assets/audio/scene5.mp3"
+    },
+    {
+      "id": "scene6",
+      "title": "Khởi Động 1-Click & Lời Kết",
+      "text": "Để bắt đầu, bạn chỉ cần nhấp đúp vào file start.bat để khởi chạy ứng dụng trên cổng tám mươi tám mươi. Hãy trải nghiệm ngay MCPE Mod Translator để mang những bản mod tuyệt vời nhất về với cộng đồng Minecraft Việt Nam!",
+      "audioFile": "video_assets/audio/scene6.mp3"
+    }
+  ]
+}
