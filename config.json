@@ -13,17 +13,83 @@
     },
     "vipSystem": {
       "enabled": true,
+      "contactInfo": "Liên hệ Zalo/Facebook/Fanpage của bạn để nhận key VIP",
+      "defaultVipDays": 30,
+      "tiers": [
+        {
+          "tier": 1,
+          "id": "vip1",
+          "name": "VIP 1 (5 Ngày)",
+          "days": 5,
+          "price": "10.000đ",
+          "keys": [
+            "VIP1-MCPE",
+            "VIP1-5DAYS",
+            "VIP1-2026"
+          ]
+        },
+        {
+          "tier": 2,
+          "id": "vip2",
+          "name": "VIP 2 (15 Ngày)",
+          "days": 15,
+          "price": "25.000đ",
+          "keys": [
+            "VIP2-MCPE",
+            "VIP2-15DAYS",
+            "VIP2-2026"
+          ]
+        },
+        {
+          "tier": 3,
+          "id": "vip3",
+          "name": "VIP 3 (1 Tháng)",
+          "days": 30,
+          "price": "45.000đ",
+          "keys": [
+            "VIP-MCPE",
+            "VIP-MCPE-PREMIUM",
+            "VIP3-MCPE",
+            "VIP3-1MONTH",
+            "VIP3-2026"
+          ]
+        },
+        {
+          "tier": 4,
+          "id": "vip4",
+          "name": "VIP 4 (5 Tháng)",
+          "days": 150,
+          "price": "150.000đ",
+          "keys": [
+            "VIP4-MCPE",
+            "VIP4-5MONTHS",
+            "PRO-MODDER-888",
+            "VIP4-2026"
+          ]
+        },
+        {
+          "tier": 5,
+          "id": "vip5",
+          "name": "VIP 5 (1 Năm)",
+          "days": 365,
+          "price": "290.000đ",
+          "keys": [
+            "VIP-PRO-MAX",
+            "VIP5-MCPE",
+            "VIP5-1YEAR",
+            "VIP5-2026"
+          ]
+        }
+      ],
       "keys": [
         "VIP-MCPE",
         "VIP-MCPE-PREMIUM",
         "VIP-PRO-MAX"
-      ],
-      "contactInfo": "Liên hệ Zalo/Facebook/Fanpage của bạn để nhận key VIP",
-      "defaultVipDays": 30
+      ]
     },
     "linkGate": {
       "enabled": true,
-      "shortlinkUrl": "https://link4m.org/DFnvFiB6",
+      "shortlinkUrl": "https://link1s.com/mcpe-key",
       "passcodes": [
         "MCPE2026",
         "MODVN888",

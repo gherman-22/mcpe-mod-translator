@@ -9,13 +9,10 @@ const TranslatorService = require('./services/translator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-mcpe-translator-2026';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-
-
-
 
 // Config Path & Dynamic Loader (Hot-Reloading without restarting)
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -34,9 +31,16 @@ const DEFAULT_CONFIG = {
     },
     vipSystem: {
       enabled: true,
-      keys: ["VIP-MCPE-2026", "VIP-TRANSLATE-PREMIUM", "PRO-MODDER-888"],
       contactInfo: "Liên hệ Zalo/Facebook/Fanpage của bạn để nhận key VIP",
-      defaultVipDays: 5
+      defaultVipDays: 30,
+      tiers: [
+        { tier: 1, id: "vip1", name: "VIP 1 (5 Ngày)", days: 5, price: "10.000đ", keys: ["VIP1-MCPE", "VIP1-5DAYS", "VIP1-2026"] },
+        { tier: 2, id: "vip2", name: "VIP 2 (15 Ngày)", days: 15, price: "25.000đ", keys: ["VIP2-MCPE", "VIP2-15DAYS", "VIP2-2026"] },
+        { tier: 3, id: "vip3", name: "VIP 3 (1 Tháng)", days: 30, price: "45.000đ", keys: ["VIP-MCPE", "VIP-MCPE-PREMIUM", "VIP3-MCPE", "VIP3-1MONTH", "VIP3-2026"] },
+        { tier: 4, id: "vip4", name: "VIP 4 (5 Tháng)", days: 150, price: "150.000đ", keys: ["VIP4-MCPE", "VIP4-5MONTHS", "PRO-MODDER-888", "VIP4-2026"] },
+        { tier: 5, id: "vip5", name: "VIP 5 (1 Năm)", days: 365, price: "290.000đ", keys: ["VIP-PRO-MAX", "VIP5-MCPE", "VIP5-1YEAR", "VIP5-2026"] }
+      ],
+      keys: ["VIP-MCPE", "VIP-MCPE-PREMIUM", "VIP-PRO-MAX"]
     },
     downloadGate: {
       countdownSeconds: 5,
@@ -56,7 +60,6 @@ function getAppConfig() {
   }
   return DEFAULT_CONFIG;
 }
-
 
 // ---------- Authentication & Link Gate Utilities ----------
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
@@ -82,7 +85,9 @@ function normalizeEmail(email) {
 
 function getTokenFromRequest(req) {
   const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) return authHeader.slice(7);
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
 
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(/(?:^|;\s*)mcpe_auth=([^;]+)/);
@@ -112,23 +117,69 @@ function userPublic(user) {
     id: user.id,
     email: user.email,
     isVip: isUserVip(user),
-    vipUntil: isUserVip(user) ? user.vipUntil : null
+    vipUntil: isUserVip(user) ? user.vipUntil : null,
+    vipTier: isUserVip(user) ? (user.vipTier || 'VIP') : null
   };
 }
 
-function getVipDurationDays(appConfig) {
-  const days = Number(appConfig?.monetization?.vipSystem?.defaultVipDays);
-  return Number.isFinite(days) && days > 0 ? days : 30;
-}
-
-function isValidVipKey(key, appConfig) {
+/**
+ * Identify VIP tier and duration from VIP Key
+ * Supports 5 Tiers:
+ * VIP 1: 5 days
+ * VIP 2: 15 days
+ * VIP 3: 30 days (1 month)
+ * VIP 4: 150 days (5 months)
+ * VIP 5: 365 days (1 year)
+ */
+function getVipTierInfo(key, appConfig) {
   const normalized = String(key || '').trim().toUpperCase();
-  if (!normalized) return false;
-  const keys = appConfig?.monetization?.vipSystem?.keys || [];
-  return keys.some(item => {
-    const value = typeof item === 'string' ? item : item?.key;
-    return String(value || '').trim().toUpperCase() === normalized;
-  });
+  if (!normalized) return null;
+
+  const vipSystem = appConfig?.monetization?.vipSystem || {};
+  const tiers = vipSystem.tiers || [];
+
+  // 1. Check exact key match in tiers
+  for (const tier of tiers) {
+    const keys = (tier.keys || []).map(k => String(k).trim().toUpperCase());
+    if (keys.includes(normalized)) {
+      return {
+        isValid: true,
+        tier: tier.tier || 1,
+        id: tier.id || `vip${tier.tier}`,
+        name: tier.name || `VIP ${tier.tier}`,
+        days: Number(tier.days) || 30
+      };
+    }
+  }
+
+  // 2. Check prefix (e.g. VIP1-..., VIP2-..., VIP3-..., VIP4-..., VIP5-...)
+  const prefixMatch = normalized.match(/^VIP([1-5])[-_]/);
+  if (prefixMatch) {
+    const tierNum = parseInt(prefixMatch[1], 10);
+    const targetTier = tiers.find(t => t.tier === tierNum);
+    const defaultDaysMap = { 1: 5, 2: 15, 3: 30, 4: 150, 5: 365 };
+    return {
+      isValid: true,
+      tier: tierNum,
+      id: `vip${tierNum}`,
+      name: targetTier?.name || `VIP ${tierNum} (${defaultDaysMap[tierNum]} Ngày)`,
+      days: Number(targetTier?.days) || defaultDaysMap[tierNum]
+    };
+  }
+
+  // 3. Fallback check general keys list
+  const generalKeys = (vipSystem.keys || []).map(k => (typeof k === 'string' ? k : k?.key || '').trim().toUpperCase());
+  if (generalKeys.includes(normalized)) {
+    return {
+      isValid: true,
+      tier: 3,
+      id: 'vip3',
+      name: 'VIP 3 (1 Tháng)',
+      days: Number(vipSystem.defaultVipDays) || 30
+    };
+  }
+
+  return null;
 }
 
 function getGatePasscodes(appConfig) {
@@ -174,7 +225,7 @@ function attachUser(req, res, next) {
       req.authUserRecord = user;
     }
   } catch {
-    // Anonymous request; protected endpoints will reject it.
+    // Invalid/expired token
   }
 
   next();
@@ -217,7 +268,7 @@ setInterval(() => {
 // ---------- Authentication API ----------
 app.post('/api/auth/register', (req, res) => {
   const email = normalizeEmail(req.body.email);
-  const password = String(req.body.password || '');
+  const password = String(req.body.password || '').trim();
 
   if (!email || password.length < 6) {
     return res.status(400).json({
@@ -228,7 +279,7 @@ app.post('/api/auth/register', (req, res) => {
 
   const users = loadUsers();
   if (users.some(u => normalizeEmail(u.email) === email)) {
-    return res.status(400).json({ success: false, message: 'Email đã tồn tại.' });
+    return res.status(400).json({ success: false, message: 'Email đã tồn tại. Vui lòng chuyển sang tab Đăng nhập.' });
   }
 
   const newUser = {
@@ -236,30 +287,101 @@ app.post('/api/auth/register', (req, res) => {
     email,
     passwordHash: bcrypt.hashSync(password, 12),
     vipUntil: null,
+    vipTier: null,
     createdAt: new Date().toISOString()
   };
 
   users.push(newUser);
   saveUsers(users);
 
-  const token = jwt.sign({ id: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '30d' });
+  const token = jwt.sign({ id: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '365d' });
   setAuthCookie(res, token);
-  res.json({ success: true, user: userPublic(newUser) });
+  res.json({ success: true, token, user: userPublic(newUser) });
 });
 
 app.post('/api/auth/login', (req, res) => {
   const email = normalizeEmail(req.body.email);
-  const password = String(req.body.password || '');
+  const password = String(req.body.password || '').trim();
   const users = loadUsers();
   const user = users.find(u => normalizeEmail(u.email) === email);
 
-  if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
-    return res.status(400).json({ success: false, message: 'Email hoặc mật khẩu không đúng.' });
+  if (!user) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email này chưa được đăng ký trong hệ thống. Vui lòng kiểm tra lại chính tả hoặc chuyển sang tab Đăng ký.'
+    });
   }
 
-  const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+  if (!bcrypt.compareSync(password, user.passwordHash)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Mật khẩu không chính xác. Bạn có thể dùng tính năng Đặt lại mật khẩu nếu bị quên.'
+    });
+  }
+
+  const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '365d' });
   setAuthCookie(res, token);
-  res.json({ success: true, user: userPublic(user) });
+  res.json({ success: true, token, user: userPublic(user) });
+});
+
+// Quick reset password endpoint
+app.post('/api/auth/reset-password', (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const newPassword = String(req.body.newPassword || '').trim();
+
+  if (!email || newPassword.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email hợp lệ và mật khẩu mới tối thiểu 6 ký tự là bắt buộc.'
+    });
+  }
+
+  const users = loadUsers();
+  const user = users.find(u => normalizeEmail(u.email) === email);
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'Không tìm thấy tài khoản với email này. Vui lòng kiểm tra lại chính xác email đã đăng ký.'
+    });
+  }
+
+  user.passwordHash = bcrypt.hashSync(newPassword, 12);
+  saveUsers(users);
+
+  const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '365d' });
+  setAuthCookie(res, token);
+  res.json({
+    success: true,
+    token,
+    user: userPublic(user),
+    message: 'Đặt lại mật khẩu thành công và đã đăng nhập tự động!'
+  });
+});
+
+app.post('/api/auth/change-password', (req, res) => {
+  if (!req.authUserRecord) {
+    return res.status(401).json({ success: false, message: 'Bạn cần đăng nhập trước.' });
+  }
+
+  const oldPassword = String(req.body.oldPassword || '').trim();
+  const newPassword = String(req.body.newPassword || '').trim();
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: 'Mật khẩu mới tối thiểu 6 ký tự.' });
+  }
+
+  if (!bcrypt.compareSync(oldPassword, req.authUserRecord.passwordHash)) {
+    return res.status(400).json({ success: false, message: 'Mật khẩu hiện tại không đúng.' });
+  }
+
+  const users = loadUsers();
+  const user = users.find(u => u.id === req.authUserRecord.id);
+  if (user) {
+    user.passwordHash = bcrypt.hashSync(newPassword, 12);
+    saveUsers(users);
+  }
+
+  res.json({ success: true, message: 'Đổi mật khẩu thành công!' });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -300,15 +422,24 @@ app.get('/api/monetization/config', (req, res) => {
   const appConfig = getAppConfig();
   const mon = appConfig.monetization || {};
   const donation = mon.donation || {};
+  const vipSystem = mon.vipSystem || {};
 
-  // Prefer custom uploaded QR image if configured, otherwise generate dynamic VietQR
   let vietQrUrl = donation.customQrImage || null;
   if (!vietQrUrl && donation.bankCode && donation.accountNumber) {
-    const amount = donation.defaultAmount || 20000;
+    const amount = donation.defaultAmount || 10000;
     const desc = encodeURIComponent(donation.message || 'Ung ho Mod Translator');
     const name = encodeURIComponent(donation.accountHolder || '');
     vietQrUrl = `https://img.vietqr.io/image/${donation.bankCode}-${donation.accountNumber}-compact2.png?amount=${amount}&addInfo=${desc}&accountName=${name}`;
   }
+
+  // Map 5 tiers for frontend display
+  const tiers = (vipSystem.tiers || []).map(t => ({
+    tier: t.tier,
+    id: t.id,
+    name: t.name,
+    days: t.days,
+    price: t.price
+  }));
 
   res.json({
     enabled: !!mon.enabled,
@@ -319,11 +450,12 @@ app.get('/api/monetization/config', (req, res) => {
       accountHolder: donation.accountHolder,
       momoPhone: donation.momoPhone,
       vietQrUrl: vietQrUrl,
-      defaultAmount: donation.defaultAmount || 20000
+      defaultAmount: donation.defaultAmount || 10000
     },
     vipSystem: {
-      enabled: !!mon.vipSystem?.enabled,
-      contactInfo: mon.vipSystem?.contactInfo || 'Liên hệ quản trị viên để mua key VIP'
+      enabled: !!vipSystem.enabled,
+      contactInfo: vipSystem.contactInfo || 'Liên hệ quản trị viên để nhận key VIP',
+      tiers: tiers
     },
     downloadGate: {
       countdownSeconds: mon.downloadGate?.countdownSeconds ?? 5,
@@ -341,13 +473,15 @@ app.post('/api/monetization/verify-vip', (req, res) => {
   const key = String(req.body.key || '').trim();
   const appConfig = getAppConfig();
 
-  if (!isValidVipKey(key, appConfig)) {
-    return res.status(400).json({ success: false, message: 'VIP Key không hợp lệ.' });
+  const tierInfo = getVipTierInfo(key, appConfig);
+  if (!tierInfo) {
+    return res.status(400).json({ success: false, message: 'VIP Key không hợp lệ hoặc đã hết hạn.' });
   }
 
-  const durationDays = getVipDurationDays(appConfig);
+  const durationDays = tierInfo.days;
   const currentUntil = Math.max(Date.now(), getVipUntil(user));
   user.vipUntil = new Date(currentUntil + durationDays * 24 * 60 * 60 * 1000).toISOString();
+  user.vipTier = tierInfo.name;
 
   const users = loadUsers();
   const index = users.findIndex(u => u.id === user.id);
@@ -356,12 +490,12 @@ app.post('/api/monetization/verify-vip', (req, res) => {
 
   res.json({
     success: true,
-    message: `Kích hoạt VIP thành công trong ${durationDays} ngày.`,
+    message: `Kích hoạt thành công gói ${tierInfo.name}! Đã cộng ${durationDays} ngày VIP vào tài khoản.`,
     user: userPublic(user)
   });
 });
 
-// Admin endpoint: upgrade by number of days
+// Admin endpoint: upgrade by number of days or tier
 app.post('/api/admin/upgrade-vip', (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN;
   if (!adminToken || req.headers['x-admin-token'] !== adminToken) {
@@ -369,7 +503,24 @@ app.post('/api/admin/upgrade-vip', (req, res) => {
   }
 
   const email = normalizeEmail(req.body.email);
-  const days = Number(req.body.days || 30);
+  let days = Number(req.body.days);
+  let tierName = null;
+
+  if (req.body.tier) {
+    const tierNum = Number(req.body.tier);
+    const tierMap = {
+      1: { days: 5, name: 'VIP 1 (5 Ngày)' },
+      2: { days: 15, name: 'VIP 2 (15 Ngày)' },
+      3: { days: 30, name: 'VIP 3 (1 Tháng)' },
+      4: { days: 150, name: 'VIP 4 (5 Tháng)' },
+      5: { days: 365, name: 'VIP 5 (1 Năm)' }
+    };
+    if (tierMap[tierNum]) {
+      days = tierMap[tierNum].days;
+      tierName = tierMap[tierNum].name;
+    }
+  }
+
   if (!email || !Number.isFinite(days) || days <= 0 || days > 3650) {
     return res.status(400).json({ success: false, message: 'Email hoặc số ngày VIP không hợp lệ.' });
   }
@@ -380,13 +531,13 @@ app.post('/api/admin/upgrade-vip', (req, res) => {
 
   const currentUntil = Math.max(Date.now(), getVipUntil(user));
   user.vipUntil = new Date(currentUntil + days * 24 * 60 * 60 * 1000).toISOString();
+  if (tierName) user.vipTier = tierName;
   saveUsers(users);
 
   res.json({ success: true, user: userPublic(user) });
 });
 
-// Middleware: attach the current user record when a valid JWT is supplied.
-// Link-gate config (does not expose the passcodes)
+// Link-gate config
 app.get('/api/link-gate/config', (req, res) => {
   const gate = getAppConfig().monetization?.linkGate || {};
   res.json({
@@ -423,6 +574,7 @@ app.post('/api/link-gate/verify', (req, res) => {
 
 /**
  * Inspection Endpoint
+ * Supports .mcpack, .mcaddon, .zip and binary ZIP detection (mobile uploads)
  */
 app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
   try {
@@ -430,11 +582,14 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
       return res.status(400).json({ error: 'Vui lòng chọn file mod (.mcpack, .mcaddon, .zip)!' });
     }
 
-    const filename = req.file.originalname;
+    const filename = req.file.originalname || 'mod_file.mcpack';
     const validExts = ['.mcpack', '.mcaddon', '.zip'];
     const hasValidExt = validExts.some(ext => filename.toLowerCase().endsWith(ext));
+    
+    // Check ZIP magic header (50 4B 03 04) to support mobile browsers where extension might be stripped
+    const isZipBuffer = req.file.buffer && req.file.buffer.length >= 4 && req.file.buffer[0] === 0x50 && req.file.buffer[1] === 0x4B;
 
-    if (!hasValidExt) {
+    if (!hasValidExt && !isZipBuffer) {
       return res.status(400).json({ error: 'Định dạng file không hỗ trợ! Chỉ chấp nhận .mcpack, .mcaddon hoặc .zip.' });
     }
 
@@ -442,7 +597,7 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
 
     if (inspection.packs.length === 0 || inspection.grandTotal === 0) {
       return res.status(400).json({
-        error: 'Không tìm thấy chuỗi ngôn ngữ hoặc menu nào trong mod này! Hãy chắc chắn file là mod MCPE hợp lệ.'
+        error: 'Không tìm thấy chuỗi ngôn ngữ, menu hoặc giao diện nào trong mod này! Hãy chắc chắn file là mod MCPE hợp lệ.'
       });
     }
 
@@ -469,9 +624,11 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
       totalLangLines: p.langFiles.reduce((acc, f) => acc + f.translatableEntries.length, 0),
       totalScriptLines: p.scriptFiles.reduce((acc, f) => acc + f.translatableEntries.length, 0),
       totalUiLines: p.uiFiles.reduce((acc, f) => acc + f.translatableEntries.length, 0),
+      totalManifestLines: (p.manifestEntries || []).length,
       langFilesCount: p.langFiles.length,
       scriptFilesCount: p.scriptFiles.length,
-      uiFilesCount: p.uiFiles.length
+      uiFilesCount: p.uiFiles.length,
+      manifestCount: (p.manifestEntries || []).length
     }));
 
     res.json({
@@ -483,6 +640,7 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
       totalLines: inspection.totalLines,
       totalScriptLines: inspection.totalScriptLines,
       totalUiLines: inspection.totalUiLines,
+      totalManifestLines: inspection.totalManifestLines,
       grandTotal: inspection.grandTotal,
       packs: clientPacks
     });
@@ -520,7 +678,6 @@ app.get('/api/translate-stream', async (req, res) => {
     return res.status(403).send('Bạn không có quyền truy cập phiên dịch này.');
   }
 
-  // File có thể được tải lên trước khi đăng nhập. Khi bắt đầu dịch, gắn phiên vào tài khoản hiện tại.
   if (!session.userId) session.userId = req.authUserRecord.id;
 
   const isVip = isUserVip(req.authUserRecord);
@@ -556,6 +713,9 @@ app.get('/api/translate-stream', async (req, res) => {
       }
       if (session.includeUi) {
         p.uiFiles.forEach(uf => overallTotal += uf.translatableEntries.length);
+      }
+      if (p.manifestEntries) {
+        overallTotal += p.manifestEntries.length;
       }
     });
 
@@ -632,7 +792,7 @@ app.get('/api/translate-stream', async (req, res) => {
         processedLines += entries.length;
       }
 
-      // 2. Process JavaScript scripts
+      // 2. Process JavaScript scripts (Forms, Chat messages, Dropdowns, Titles)
       if (session.includeScripts && pack.scriptFiles) {
         for (let sIdx = 0; sIdx < pack.scriptFiles.length; sIdx++) {
           const scriptFile = pack.scriptFiles[sIdx];
@@ -661,12 +821,39 @@ app.get('/api/translate-stream', async (req, res) => {
           processedLines += entries.length;
         }
       }
+
+      // 4. Process Manifest.json strings (Subpacks menu cài ở ngoài map & metadata)
+      if (pack.manifestEntries && pack.manifestEntries.length > 0) {
+        const entries = pack.manifestEntries;
+        const transValues = await translateEntryList(entries);
+        for (let i = 0; i < entries.length; i++) {
+          entries[i].translatedValue = transValues[i] || entries[i].originalValue;
+        }
+        processedLines += entries.length;
+      }
     }
 
     session.translated = true;
 
     const reviewData = [];
     session.inspection.packs.forEach((pack, pIdx) => {
+      // Manifest entries
+      if (pack.manifestEntries && pack.manifestEntries.length > 0) {
+        pack.manifestEntries.forEach((entry, mIdx) => {
+          reviewData.push({
+            type: 'manifest',
+            pIdx,
+            fIdx: 0,
+            eIdx: mIdx,
+            sourceType: 'manifest.json (Menu ngoài map)',
+            key: entry.label || entry.key,
+            original: entry.originalValue,
+            translated: entry.translatedValue
+          });
+        });
+      }
+
+      // Lang entries
       pack.langFiles.forEach((f, fIdx) => {
         f.translatableEntries.forEach((entry, eIdx) => {
           reviewData.push({
@@ -682,6 +869,7 @@ app.get('/api/translate-stream', async (req, res) => {
         });
       });
 
+      // Script entries
       if (session.includeScripts && pack.scriptFiles) {
         pack.scriptFiles.forEach((sf, sfIdx) => {
           sf.translatableEntries.forEach((entry, seIdx) => {
@@ -699,6 +887,7 @@ app.get('/api/translate-stream', async (req, res) => {
         });
       }
 
+      // UI JSON entries
       if (session.includeUi && pack.uiFiles) {
         pack.uiFiles.forEach((uf, ufIdx) => {
           uf.translatableEntries.forEach((entry, ueIdx) => {
@@ -720,7 +909,7 @@ app.get('/api/translate-stream', async (req, res) => {
     sendEvent('complete', {
       success: true,
       totalTranslated: processedLines,
-      reviewData: reviewData.slice(0, 600),
+      reviewData: reviewData.slice(0, 800),
       totalEntries: reviewData.length,
       isVip
     });
@@ -764,6 +953,12 @@ app.post('/api/update-entry', (req, res) => {
       }
     } else if (type === 'ui') {
       const entry = pack.uiFiles[fIdx]?.translatableEntries[eIdx];
+      if (entry) {
+        entry.translatedValue = newValue;
+        return res.json({ success: true });
+      }
+    } else if (type === 'manifest') {
+      const entry = pack.manifestEntries && pack.manifestEntries[eIdx];
       if (entry) {
         entry.translatedValue = newValue;
         return res.json({ success: true });

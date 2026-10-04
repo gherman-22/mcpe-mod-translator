@@ -2,11 +2,13 @@ const JSZip = require('jszip');
 const LangParser = require('./langParser');
 const ScriptParser = require('./scriptParser');
 const UiJsonParser = require('./uiJsonParser');
+const ManifestParser = require('./manifestParser');
 
 class ArchiveService {
   /**
    * Inspect uploaded archive (.mcpack, .mcaddon, .zip)
-   * Extracts metadata, pack icon, translatable .lang files, JavaScript menu strings, and UI JSON files.
+   * Extracts metadata, pack icon, manifest strings (menus/subpacks),
+   * translatable .lang files, JavaScript menu strings, and UI JSON files.
    */
   static async inspectArchive(buffer, filename) {
     const zip = await JSZip.loadAsync(buffer);
@@ -54,6 +56,7 @@ class ArchiveService {
     let totalLines = 0;
     let totalScriptLines = 0;
     let totalUiLines = 0;
+    let totalManifestLines = 0;
 
     packs.forEach(p => {
       p.langFiles.forEach(lf => {
@@ -65,6 +68,9 @@ class ArchiveService {
       p.uiFiles.forEach(uf => {
         totalUiLines += uf.translatableEntries.length;
       });
+      if (p.manifestEntries) {
+        totalManifestLines += p.manifestEntries.length;
+      }
     });
 
     return {
@@ -74,7 +80,8 @@ class ArchiveService {
       totalLines,
       totalScriptLines,
       totalUiLines,
-      grandTotal: totalLines + totalScriptLines + totalUiLines
+      totalManifestLines,
+      grandTotal: totalLines + totalScriptLines + totalUiLines + totalManifestLines
     };
   }
 
@@ -82,8 +89,9 @@ class ArchiveService {
    * Extract info from a zip instance representing a single pack
    */
   static async extractPackFromZip(zip, displayName, packIdentifier, folderPrefix = '') {
-    // 1. Find manifest.json
+    // 1. Find and parse manifest.json (Includes subpacks menu options)
     let manifestData = null;
+    let manifestEntries = [];
     const manifestPath = Object.keys(zip.files).find(p => {
       const norm = p.toLowerCase();
       return folderPrefix ? norm === (folderPrefix + 'manifest.json').toLowerCase() : norm.endsWith('manifest.json');
@@ -91,17 +99,21 @@ class ArchiveService {
 
     if (manifestPath) {
       try {
-        const text = await zip.file(manifestPath).async('text');
-        manifestData = JSON.parse(text);
+        const rawManifestText = await zip.file(manifestPath).async('text');
+        const extracted = ManifestParser.extractTranslatableStrings(rawManifestText);
+        manifestData = extracted.parsed;
+        manifestEntries = extracted.entries;
       } catch (e) {
         console.warn('Could not parse manifest.json:', e);
       }
     }
 
-    const name = manifestData?.header?.name || displayName.replace(/\.[^/.]+$/, '');
-    const description = manifestData?.header?.description || 'No description';
+    const name = (typeof manifestData?.header?.name === 'string' ? manifestData.header.name : '') || displayName.replace(/\.[^/.]+$/, '');
+    const description = (typeof manifestData?.header?.description === 'string' ? manifestData.header.description : '') || 'No description';
     const uuid = manifestData?.header?.uuid || '';
-    const version = manifestData?.header?.version ? manifestData.header.version.join('.') : '1.0.0';
+    const version = Array.isArray(manifestData?.header?.version)
+      ? manifestData.header.version.join('.')
+      : (manifestData?.header?.version != null ? String(manifestData.header.version) : '1.0.0');
 
     // 2. Find pack icon
     let iconBase64 = null;
@@ -149,7 +161,7 @@ class ArchiveService {
       });
     }
 
-    // 4. Find scripts/**/*.js / .ts files (Bedrock Script API menus & forms)
+    // 4. Find scripts/**/*.js / .ts files (Bedrock Script API menus, chat messages & forms)
     const scriptFiles = [];
     const scriptRegex = folderPrefix
       ? new RegExp(`^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}scripts/.*\\.(js|ts)$`, 'i')
@@ -210,6 +222,9 @@ class ArchiveService {
       iconBase64,
       packIdentifier,
       folderPrefix,
+      manifestPath,
+      parsedManifest: manifestData,
+      manifestEntries,
       langFiles,
       scriptFiles,
       uiFiles
@@ -217,7 +232,7 @@ class ArchiveService {
   }
 
   /**
-   * Repack archive with translated texts, scripts, and UI files
+   * Repack archive with translated texts, scripts, manifest menus, and UI files
    */
   static async repackArchive({
     originalBuffer,
@@ -301,6 +316,16 @@ class ArchiveService {
             const updatedJson = UiJsonParser.serializeWithTranslations(uf.parsedObject, uf.translatableEntries);
             targetZip.file(uf.path, updatedJson);
           }
+        }
+      }
+
+      // 4. Repack manifest.json (Menu subpacks & metadata ngoài map)
+      if (pack.manifestPath && pack.manifestEntries && pack.manifestEntries.length > 0) {
+        try {
+          const updatedManifestJson = ManifestParser.serializeWithTranslations(pack.parsedManifest, pack.manifestEntries);
+          targetZip.file(pack.manifestPath, updatedManifestJson);
+        } catch (e) {
+          console.warn(`Could not repack manifest ${pack.manifestPath}:`, e);
         }
       }
 
