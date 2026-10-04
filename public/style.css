@@ -1,0 +1,209 @@
+/* Custom CSS & Minecraft Aesthetic Enhancements */
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Block Clicker Animations */
+@keyframes blockShake {
+  0% { transform: scale(1) translate(0, 0); }
+  20% { transform: scale(0.96) translate(-3px, 2px); }
+  40% { transform: scale(0.97) translate(3px, -2px); }
+  60% { transform: scale(0.96) translate(-2px, -2px); }
+  80% { transform: scale(0.98) translate(2px, 2px); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+
+.block-shake {
+  animation: blockShake 0.15s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes floatParticle {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx, 0), var(--ty, -60px)) scale(1.4);
+  }
+}
+
+.floating-exp {
+  position: absolute;
+  pointer-events: none;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+  animation: floatParticle 0.8s ease-out forwards;
+  z-index: 30;
+}
+
+/* Minecraft 3D Cube Styles */
+.mc-cube {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 18px;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+.mc-cube:active {
+  transform: scale(0.92);
+}
+
+/* Lucky Crate Animations */
+@keyframes crateChestGlow {
+  0%, 100% {
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 45px rgba(245, 158, 11, 0.55);
+    transform: scale(1.03);
+  }
+}
+
+.crate-glow {
+  animation: crateChestGlow 2s infinite ease-in-out;
+}
+
+@keyframes lootPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(30px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15) translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-loot-pop {
+  animation: lootPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Minecraft 2048 Game Tiles */
+.grid-2048 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  background-color: #0d131f;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid #1e293b;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.tile-2048 {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  font-size: 14px;
+  user-select: none;
+  transition: all 0.1s ease;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.tile-empty {
+  background-color: #131b2e;
+  border: 1px solid #1e293b;
+}
+
+.tile-2 { background: #5c3a21; color: #fde047; border: 1px solid #8b5a2b; } /* Wood */
+.tile-4 { background: #4a4a4a; color: #e2e8f0; border: 1px solid #737373; } /* Stone */
+.tile-8 { background: #8c6853; color: #ffffff; border: 1px solid #d8af97; } /* Iron */
+.tile-16 { background: #b45309; color: #fef08a; border: 1px solid #f59e0b; } /* Gold */
+.tile-32 { background: #991b1b; color: #fca5a5; border: 1px solid #ef4444; } /* Redstone */
+.tile-64 { background: #065f46; color: #6ee7b7; border: 1px solid #10b981; } /* Emerald */
+.tile-128 { background: #0f766e; color: #5eead4; border: 1px solid #14b8a6; box-shadow: 0 0 12px #14b8a680; } /* Diamond */
+.tile-256 { background: #312e81; color: #c7d2fe; border: 1px solid #6366f1; box-shadow: 0 0 16px #6366f180; } /* Lapis */
+.tile-512 { background: #4c1d95; color: #f5d0fe; border: 1px solid #a855f7; box-shadow: 0 0 20px #a855f780; } /* Netherite */
+.tile-1024 { background: #831843; color: #fbcfe8; border: 1px solid #ec4899; box-shadow: 0 0 24px #ec489980; } /* Dragon Egg */
+.tile-2048 { background: linear-gradient(135deg, #f59e0b, #ec4899, #8b5cf6); color: #ffffff; border: 1px solid #facc15; box-shadow: 0 0 30px #f59e0b; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+/* Minecraft color formatting previews (when texts have § codes) */
+.mc-color-0 { color: #000000; }
+.mc-color-1 { color: #0000aa; }
+.mc-color-2 { color: #00aa00; }
+.mc-color-3 { color: #00aaaa; }
+.mc-color-4 { color: #aa0000; }
+.mc-color-5 { color: #aa00aa; }
+.mc-color-6 { color: #ffaa00; }
+.mc-color-7 { color: #aaaaaa; }
+.mc-color-8 { color: #555555; }
+.mc-color-9 { color: #5555ff; }
+.mc-color-a { color: #55ff55; }
+.mc-color-b { color: #55ffff; }
+.mc-color-c { color: #ff5555; }
+.mc-color-d { color: #ff55ff; }
+.mc-color-e { color: #ffff55; }
+.mc-color-f { color: #ffffff; }
+
+/* Table editable input highlight */
+.editable-input:focus {
+  background-color: #022c22 !important;
+  outline: 2px solid #10b981 !important;
+}
+
+/* Terminal Log Pulse Effect */
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+.log-pulse {
+  animation: pulseGlow 2s infinite;
+}
