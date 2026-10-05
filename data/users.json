@@ -1,18 +1,1 @@
-[
-  {
-    "id": "a5ed29e8-d240-4bb3-8a3a-fd49c4024fc1",
-    "email": "quocbao8080209@gmail.com",
-    "passwordHash": "$2a$12$yHU0v7ilLNogvjLx6Acrue03Io8nu26Ogy./Q0erBp3CpHU77VLnC",
-    "vipUntil": "2026-10-09T04:27:02.198Z",
-    "createdAt": "2026-10-03T13:34:38.510Z",
-    "vipTier": "VIP 1 (5 Ngày)"
-  },
-  {
-    "id": "f3ffcebf-80b6-45b0-a89b-4a1d4eb5f6c5",
-    "email": "czkh@gmail.com",
-    "passwordHash": "$2a$12$P.1OZDEXKZ0DUVArqaoyM.CqY20UJ9Qs8OMXPB44noFyQCAk4xmDq",
-    "vipUntil": null,
-    "vipTier": null,
-    "createdAt": "2026-10-04T05:09:50.967Z"
-  }
-]
+[]
