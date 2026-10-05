@@ -39,7 +39,7 @@
 ## 🚀 Hướng Dẫn Sử Dụng Nhanh
 
 ### 1. Khởi động ứng dụng
-- **Cách 1 (Nhanh nhất)**: Nhấp đúp chuột vào file **`start.bat`**. Ứng dụng sẽ tự động khởi động và mở trình duyệt tại `http://localhost:8080`.
+- **Cách 1 (Nhanh nhất)**: Nhấp đúp chuột vào file **`start.bat`**. Ứng dụng sẽ tự động khởi động và mở trình duyệt tại `http://localhost:2208`.
 - **Cách 2 (Bằng dòng lệnh)**:
   ```bash
   cd C:\Users\vuong\.gemini\antigravity\scratch\mcpe-mod-translator
@@ -146,3 +146,11 @@ Nếu triển khai public, nên đặt biến môi trường `JWT_SECRET` thành
 ### Lưu ý khi triển khai
 
 Đặt biến môi trường `JWT_SECRET` thành một chuỗi bí mật riêng khi chạy trên máy chủ thật. Có thể đặt `ADMIN_TOKEN` để sử dụng API cộng VIP cho tài khoản quản trị.
+
+## Kho Mod (trang riêng, chỉ 1 admin duy nhất)
+
+- Kho mod là trang index riêng: `/kho-mod` (file `public/kho-mod.html`). Ai cũng xem và bấm vào vật phẩm để mở link tải.
+- Web chỉ có **một tài khoản admin duy nhất**, cấu hình bằng 2 biến môi trường: `ADMIN_EMAIL` và `ADMIN_PASSWORD` (mật khẩu tối thiểu 8 ký tự). Tài khoản này tách riêng khỏi user đăng ký, không cần đăng ký trước.
+- Đăng nhập tại `/kho-mod` bằng nút "Admin". Chỉ phiên admin mới tạo/xóa được vật phẩm: `POST /api/mods` và `DELETE /api/mods/:id` trả 401 nếu không phải admin.
+- Trên Render: thêm `ADMIN_EMAIL` và `ADMIN_PASSWORD` trong mục Environment. Chạy local: điền 2 giá trị này ở đầu `start.bat` / `mo_web_online.bat`.
+- Chưa đặt 2 biến này thì không ai đăng nhập admin được (không có mật khẩu mặc định).

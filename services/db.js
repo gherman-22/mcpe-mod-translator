@@ -12,6 +12,7 @@ const { MongoClient } = require('mongodb');
 let client = null;
 let db = null;
 let usersCol = null;
+let modsCol = null;
 
 const MONGO_URI = process.env.MONGODB_URI || '';
 const DB_NAME = process.env.MONGODB_DB || 'mcpe_translator';
@@ -29,6 +30,7 @@ async function connectMongo() {
     await client.connect();
     db = client.db(DB_NAME);
     usersCol = db.collection('users');
+    modsCol = db.collection('mods');
 
     // Index để tìm kiếm email nhanh
     await usersCol.createIndex({ email: 1 }, { unique: true });
@@ -41,6 +43,7 @@ async function connectMongo() {
     client = null;
     db = null;
     usersCol = null;
+    modsCol = null;
     return false;
   }
 }
@@ -87,7 +90,25 @@ async function countUsers() {
   return usersCol.countDocuments();
 }
 
+/** ---- Kho mod ---- */
+async function findAllMods() {
+  if (!modsCol) return null;
+  return modsCol.find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray();
+}
+async function insertMod(mod) {
+  if (!modsCol) return null;
+  return modsCol.insertOne({ ...mod });
+}
+async function deleteMod(id) {
+  if (!modsCol) return null;
+  const r = await modsCol.deleteOne({ id });
+  return r.deletedCount;
+}
+
 module.exports = {
+  findAllMods,
+  insertMod,
+  deleteMod,
   connectMongo,
   isMongoConnected,
   findAllUsers,

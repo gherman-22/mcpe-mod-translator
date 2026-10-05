@@ -12,9 +12,9 @@ RUN npm ci --only=production || npm install --production
 COPY . .
 
 # Expose server port
-EXPOSE 8080
+EXPOSE 2208
 
-ENV PORT=8080
+ENV PORT=2208
 ENV NODE_ENV=production
 
 CMD ["node", "server.js"]

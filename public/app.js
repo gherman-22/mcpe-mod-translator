@@ -174,8 +174,8 @@ const btnLogout = document.getElementById('btnLogout');
 // VIP Modal
 const vipNavLabel = document.getElementById('vipNavLabel');
 const vipModal = document.getElementById('vipModal');
+const vipKeyForm = document.getElementById('vipKeyForm');
 const vipKeyInput = document.getElementById('vipKeyInput');
-const btnVerifyVip = document.getElementById('btnVerifyVip');
 const vipContactInfo = document.getElementById('vipContactInfo');
 
 // Link Gate Modal
@@ -1595,13 +1595,19 @@ function setupModals() {
     });
   });
 
-  btnVerifyVip.addEventListener('click', async () => {
+  vipKeyForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
     if (!currentUser) {
-      vipModal.classList.add('hidden');
       return openAuthModal('login');
     }
 
-    const key = vipKeyInput.value.trim();
+    const key = vipKeyInput.value
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
+      .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+      .trim()
+      .replace(/\s+/g, '-')
+      .toUpperCase();
     if (!key) return alert('Vui lòng nhập mã VIP Key!');
 
     try {
@@ -1610,8 +1616,15 @@ function setupModals() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
+      if (res.status === 401) {
+        localStorage.removeItem('mcpe_auth_token');
+        setCurrentUser(null);
+        vipModal.classList.add('hidden');
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi nhập key.');
+        return openAuthModal('login');
+      }
       if (!res.ok) return alert(data.message || 'VIP Key không chính xác hoặc đã hết hạn!');
 
       setCurrentUser(data.user);

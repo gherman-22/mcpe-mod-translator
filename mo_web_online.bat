@@ -3,6 +3,10 @@ title MCPE Mod Translator - Mo Web Online Ra Internet
 chcp 65001 >nul
 cls
 
+rem === Dien tai khoan admin DUY NHAT cua web (mat khau toi thieu 8 ky tu) ===
+set "ADMIN_EMAIL=quocbao2208209@gmail.com"
+set "ADMIN_PASSWORD=Buibao2009"
+
 echo =======================================================================
 echo          MCPE MOD TRANSLATOR - MO WEB ONLINE RA INTERNET
 echo =======================================================================
@@ -20,8 +24,8 @@ if not exist node_modules\bcryptjs (
 )
 
 echo.
-echo [*] Buoc 1: Dang khoi dong Web Server MCPE tai http://localhost:8080...
-start "MCPE Web Server (Local:8080)" cmd /k "node server.js"
+echo [*] Buoc 1: Dang khoi dong Web Server MCPE tai http://localhost:2208...
+start "MCPE Web Server (Local:2208)" cmd /k "node server.js"
 
 :: Cho 2 giay de Server on dinh
 timeout /t 2 /nobreak >nul
@@ -39,10 +43,10 @@ echo =======================================================================
 echo.
 
 if exist cloudflared.exe (
-    cloudflared.exe tunnel --url http://localhost:8080
+    cloudflared.exe tunnel --url http://localhost:2208
 ) else (
     echo [!] Khong tim thay cloudflared.exe, chuyen sang LocalTunnel...
-    call npx.cmd --yes localtunnel --port 8080
+    call npx.cmd --yes localtunnel --port 2208
 )
 
 pause

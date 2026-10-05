@@ -13,7 +13,7 @@ const mongoDb = require('./services/db');
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-mcpe-translator-2026';
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 2208;
 
 // Config Path & Dynamic Loader (Hot-Reloading without restarting)
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -166,6 +166,31 @@ function isUserVip(user) {
   return !!user && getVipUntil(user) > Date.now();
 }
 
+// ---------- Tài khoản admin DUY NHẤT của web ----------
+// Cấu hình qua biến môi trường ADMIN_EMAIL + ADMIN_PASSWORD. Tài khoản này nằm riêng,
+// không phải user đăng ký, và web không có tài khoản admin nào khác.
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || '');
+const ADMIN_ENABLED = !!ADMIN_EMAIL && ADMIN_PASSWORD.length >= 8;
+// Khóa ký token admin phụ thuộc cả mật khẩu admin => không thể giả mạo nếu không biết mật khẩu
+const ADMIN_JWT_SECRET = crypto.createHash('sha256').update(`${JWT_SECRET}:admin:${ADMIN_PASSWORD}`).digest('hex');
+const adminLoginAttempts = new Map(); // ip -> { count, resetAt }
+
+function safeEqual(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+function getAdminFromRequest(req) {
+  if (!ADMIN_ENABLED) return null;
+  const token = req.headers['x-admin-session'];
+  if (!token) return null;
+  try {
+    const p = jwt.verify(String(token), ADMIN_JWT_SECRET);
+    return p && p.role === 'admin' && p.email === ADMIN_EMAIL ? p : null;
+  } catch { return null; }
+}
+
 function userPublic(user) {
   return {
     id: user.id,
@@ -174,6 +199,20 @@ function userPublic(user) {
     vipUntil: isUserVip(user) ? user.vipUntil : null,
     vipTier: isUserVip(user) ? (user.vipTier || 'VIP') : null
   };
+}
+
+/**
+ * Chuẩn hóa VIP Key người dùng nhập: bỏ ký tự ẩn, đổi các loại dấu gạch
+ * (– — ‑ − ...) về "-", gộp khoảng trắng thành "-", viết hoa.
+ */
+function normalizeVipKey(key) {
+  return String(key || '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toUpperCase();
 }
 
 /**
@@ -186,7 +225,7 @@ function userPublic(user) {
  * VIP 5: 365 days (1 year)
  */
 function getVipTierInfo(key, appConfig) {
-  const normalized = String(key || '').trim().toUpperCase();
+  const normalized = normalizeVipKey(key);
   if (!normalized) return null;
 
   const vipSystem = appConfig?.monetization?.vipSystem || {};
@@ -194,7 +233,7 @@ function getVipTierInfo(key, appConfig) {
 
   // 1. Check exact key match in tiers
   for (const tier of tiers) {
-    const keys = (tier.keys || []).map(k => String(k).trim().toUpperCase());
+    const keys = (tier.keys || []).map(k => normalizeVipKey(k));
     if (keys.includes(normalized)) {
       return {
         isValid: true,
@@ -222,7 +261,7 @@ function getVipTierInfo(key, appConfig) {
   }
 
   // 3. Fallback check general keys list
-  const generalKeys = (vipSystem.keys || []).map(k => (typeof k === 'string' ? k : k?.key || '').trim().toUpperCase());
+  const generalKeys = (vipSystem.keys || []).map(k => normalizeVipKey(typeof k === 'string' ? k : k?.key || ''));
   if (generalKeys.includes(normalized)) {
     return {
       isValid: true,
@@ -325,6 +364,10 @@ setInterval(() => {
 app.post('/api/auth/register', async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const password = String(req.body.password || '').trim();
+
+  if (ADMIN_EMAIL && email === ADMIN_EMAIL) {
+    return res.status(400).json({ success: false, message: 'Email này không thể đăng ký.' });
+  }
 
   if (!email || password.length < 6) {
     return res.status(400).json({
@@ -526,6 +569,7 @@ app.post('/api/monetization/verify-vip', async (req, res) => {
   }
 
   const key = String(req.body.key || '').trim();
+  console.log('[verify-vip] user=%s key=%s', user.email, normalizeVipKey(key));
   const appConfig = getAppConfig();
 
   const tierInfo = getVipTierInfo(key, appConfig);
@@ -547,6 +591,117 @@ app.post('/api/monetization/verify-vip', async (req, res) => {
     message: `Kích hoạt thành công gói ${tierInfo.name}! Đã cộng ${durationDays} ngày VIP vào tài khoản.`,
     user: userPublic(user)
   });
+});
+
+// ---------- Kho Mod (Mod Store) ----------
+const MODS_FILE = path.join(__dirname, 'data', 'mods.json');
+const MAX_MODS = 500;
+
+function loadModsFromFile() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(MODS_FILE, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveModsToFile(mods) {
+  fs.mkdirSync(path.dirname(MODS_FILE), { recursive: true });
+  fs.writeFileSync(MODS_FILE, JSON.stringify(mods, null, 2));
+}
+async function listMods() {
+  if (mongoDb.isMongoConnected()) return mongoDb.findAllMods();
+  return loadModsFromFile().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+// Trang kho mod là index riêng (public/kho-mod.html)
+app.get(['/kho-mod', '/kho-mod/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'kho-mod.html'));
+});
+
+// Ai cũng xem được kho mod; chỉ admin web mới tạo/xóa vật phẩm
+function requireAdmin(req, res, next) {
+  const admin = getAdminFromRequest(req);
+  if (!admin) return res.status(401).json({ success: false, message: 'Chỉ admin web mới có quyền thực hiện thao tác này.' });
+  req.adminUser = admin;
+  next();
+}
+
+app.post('/api/admin/login', (req, res) => {
+  if (!ADMIN_ENABLED) {
+    return res.status(503).json({ success: false, message: 'Chưa cấu hình tài khoản admin (cần ADMIN_EMAIL và ADMIN_PASSWORD ≥ 8 ký tự trên server).' });
+  }
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  let rec = adminLoginAttempts.get(ip);
+  if (!rec || rec.resetAt <= now) rec = { count: 0, resetAt: now + 15 * 60 * 1000 };
+  if (rec.count >= 8) {
+    return res.status(429).json({ success: false, message: 'Thử sai quá nhiều lần. Vui lòng đợi 15 phút.' });
+  }
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  const okEmail = safeEqual(email, ADMIN_EMAIL);
+  const okPass = safeEqual(password, ADMIN_PASSWORD);
+  if (!(okEmail && okPass)) {
+    rec.count++; adminLoginAttempts.set(ip, rec);
+    return res.status(401).json({ success: false, message: 'Sai email hoặc mật khẩu admin.' });
+  }
+  adminLoginAttempts.delete(ip);
+  const token = jwt.sign({ role: 'admin', email: ADMIN_EMAIL }, ADMIN_JWT_SECRET, { expiresIn: '12h' });
+  res.json({ success: true, token });
+});
+
+app.get('/api/mods', async (req, res) => {
+  const mods = await listMods();
+  res.json({
+    success: true,
+    canManage: !!getAdminFromRequest(req),
+    mods: mods.map(m => ({ id: m.id, name: m.name, image: m.image, link: m.link, createdAt: m.createdAt }))
+  });
+});
+
+app.post('/api/mods', requireAdmin, async (req, res) => {
+  const user = { id: 'admin' };
+
+  const name = String(req.body.name || '').trim().slice(0, 80);
+  const link = String(req.body.link || '').trim();
+  const image = String(req.body.image || '');
+
+  if (!name) return res.status(400).json({ success: false, message: 'Vui lòng nhập tên vật phẩm.' });
+  let url;
+  try { url = new URL(link); } catch { url = null; }
+  if (!url || !/^https?:$/.test(url.protocol) || link.length > 500) {
+    return res.status(400).json({ success: false, message: 'Đường link tải phải bắt đầu bằng http:// hoặc https://' });
+  }
+  if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 900 * 1024) {
+    return res.status(400).json({ success: false, message: 'Ảnh vật phẩm không hợp lệ hoặc quá lớn.' });
+  }
+
+  const mods = await listMods();
+  if (mods.length >= MAX_MODS) {
+    return res.status(400).json({ success: false, message: `Kho mod tối đa ${MAX_MODS} vật phẩm.` });
+  }
+
+  const mod = {
+    id: crypto.randomUUID(), name, image, link: url.href,
+    ownerId: user.id, createdAt: new Date().toISOString()
+  };
+  if (mongoDb.isMongoConnected()) await mongoDb.insertMod(mod);
+  else saveModsToFile([mod, ...loadModsFromFile()]);
+
+  res.json({ success: true, mod: { id: mod.id, name, image, link: mod.link, createdAt: mod.createdAt } });
+});
+
+app.delete('/api/mods/:id', requireAdmin, async (req, res) => {
+  let removed = 0;
+  if (mongoDb.isMongoConnected()) {
+    removed = await mongoDb.deleteMod(req.params.id);
+  } else {
+    const mods = loadModsFromFile();
+    const rest = mods.filter(m => m.id !== req.params.id);
+    removed = mods.length - rest.length;
+    if (removed) saveModsToFile(rest);
+  }
+  if (!removed) return res.status(404).json({ success: false, message: 'Không tìm thấy vật phẩm.' });
+  res.json({ success: true });
 });
 
 // Admin endpoint: upgrade by number of days or tier
