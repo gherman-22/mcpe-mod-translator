@@ -1586,7 +1586,7 @@ function setupModals() {
     });
   }
 
-  btnCopyAcc.addEventListener('click', () => {
+  if (btnCopyAcc) btnCopyAcc.addEventListener('click', () => {
     const acc = bankAccDisplay.textContent;
     navigator.clipboard.writeText(acc).then(() => {
       const orig = btnCopyAcc.innerHTML;
@@ -1595,47 +1595,50 @@ function setupModals() {
     });
   });
 
-  vipKeyForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!currentUser) {
+}
+
+// Keep VIP submission independent from optional modal controls so a failure in
+// another dialog widget cannot leave this form inert on production.
+async function handleVipKeySubmit(e) {
+  e.preventDefault();
+  if (!currentUser) return openAuthModal('login');
+
+  const key = vipKeyInput.value
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toUpperCase();
+  if (!key) return alert('Vui lòng nhập mã VIP Key!');
+
+  try {
+    const res = await authFetch('/api/monetization/verify-vip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.status === 401) {
+      localStorage.removeItem('mcpe_auth_token');
+      setCurrentUser(null);
+      vipModal.classList.add('hidden');
+      alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi nhập key.');
       return openAuthModal('login');
     }
+    if (!res.ok) return alert(data.message || 'VIP Key không chính xác hoặc đã hết hạn!');
 
-    const key = vipKeyInput.value
-      .normalize('NFKC')
-      .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
-      .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
-      .trim()
-      .replace(/\s+/g, '-')
-      .toUpperCase();
-    if (!key) return alert('Vui lòng nhập mã VIP Key!');
-
-    try {
-      const res = await authFetch('/api/monetization/verify-vip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key })
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (res.status === 401) {
-        localStorage.removeItem('mcpe_auth_token');
-        setCurrentUser(null);
-        vipModal.classList.add('hidden');
-        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi nhập key.');
-        return openAuthModal('login');
-      }
-      if (!res.ok) return alert(data.message || 'VIP Key không chính xác hoặc đã hết hạn!');
-
-      setCurrentUser(data.user);
-      vipKeyInput.value = '';
-      vipModal.classList.add('hidden');
-      alert(data.message);
-    } catch {
-      alert('Lỗi kết nối khi kiểm tra VIP key.');
-    }
-  });
+    setCurrentUser(data.user);
+    vipKeyInput.value = '';
+    vipModal.classList.add('hidden');
+    alert(data.message);
+  } catch {
+    alert('Lỗi kết nối khi kiểm tra VIP key.');
+  }
 }
+
+if (vipKeyForm) vipKeyForm.addEventListener('submit', handleVipKeySubmit);
 
 btnVerifyLinkGate.addEventListener('click', async () => {
   if (!currentUser) {

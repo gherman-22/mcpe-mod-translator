@@ -569,7 +569,6 @@ app.post('/api/monetization/verify-vip', async (req, res) => {
   }
 
   const key = String(req.body.key || '').trim();
-  console.log('[verify-vip] user=%s key=%s', user.email, normalizeVipKey(key));
   const appConfig = getAppConfig();
 
   const tierInfo = getVipTierInfo(key, appConfig);
