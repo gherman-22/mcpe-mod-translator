@@ -13,6 +13,7 @@ const mongoDb = require('./services/db');
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-mcpe-translator-2026';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 2208;
 
 // Config Path & Dynamic Loader (Hot-Reloading without restarting)
@@ -46,6 +47,13 @@ const DEFAULT_CONFIG = {
     downloadGate: {
       countdownSeconds: 5,
       adBannerHtml: ""
+    },
+    linkGate: {
+      enabled: true,
+      passcodes: [],
+      passDurationMinutes: 60,
+      shortlinkUrl: "",
+      note: "Hoàn thành bước vượt link rồi nhập mã dùng một lần."
     }
   }
 };
@@ -275,31 +283,113 @@ function getVipTierInfo(key, appConfig) {
   return null;
 }
 
-function getGatePasscodes(appConfig) {
-  return (appConfig?.monetization?.linkGate?.passcodes || [])
-    .map(x => String(x).trim().toUpperCase())
-    .filter(Boolean);
+const LINK_GATE_CODES_FILE = path.join(__dirname, 'data', 'link-gate-codes.json');
+const LINK_GATE_CODE_TTL_MINUTES = 30;
+const LINK_GATE_ISSUE_COOLDOWN_SECONDS = 180;
+
+function normalizeLinkGateCode(raw) {
+  const value = String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return value.length === 8 ? `${value.slice(0, 4)}-${value.slice(4)}` : '';
 }
 
-const gateTokens = new Map();
+function hashLinkGateCode(raw) {
+  return crypto.createHash('sha256').update(normalizeLinkGateCode(raw)).digest('hex');
+}
+
+function hashLinkGateIp(ip) {
+  return crypto.createHash('sha256').update(`${JWT_SECRET}:link-gate:${ip}`).digest('hex');
+}
+
+function makeLinkGateCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(8);
+  let raw = '';
+  for (const byte of bytes) raw += alphabet[byte % alphabet.length];
+  return `${raw.slice(0, 4)}-${raw.slice(4)}`;
+}
+
+function requirePersistentLinkCodeStore() {
+  if (process.env.NODE_ENV === 'production' && !mongoDb.isMongoConnected()) {
+    const error = new Error('Cần kết nối MongoDB trên Render để tạo và kiểm tra mã vượt link.');
+    error.statusCode = 503;
+    throw error;
+  }
+}
+
+function readLocalLinkGateCodes() {
+  try {
+    const data = JSON.parse(fs.readFileSync(LINK_GATE_CODES_FILE, 'utf8'));
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+function writeLocalLinkGateCodes(records) {
+  fs.mkdirSync(path.dirname(LINK_GATE_CODES_FILE), { recursive: true });
+  const temp = `${LINK_GATE_CODES_FILE}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(records, null, 2));
+  fs.renameSync(temp, LINK_GATE_CODES_FILE);
+}
+
+async function issueLinkGateCode(ipHash) {
+  requirePersistentLinkCodeStore();
+  const now = Date.now();
+  let records;
+  if (mongoDb.isMongoConnected()) {
+    const active = await mongoDb.findActiveLinkGateCode(ipHash);
+    if (active) return { ok: true, code: active.code, expiresAt: new Date(active.expiresAt).toISOString(), reused: true, ttlMinutes: LINK_GATE_CODE_TTL_MINUTES };
+    const latest = await mongoDb.findLatestLinkGateCode(ipHash);
+    records = latest ? [{ createdAt: latest.createdAt }] : [];
+  } else {
+    records = readLocalLinkGateCodes().filter(item => new Date(item.expiresAt).getTime() > now || item.usedAt);
+    const active = records.find(item => item.ipHash === ipHash && !item.usedAt && new Date(item.expiresAt).getTime() > now);
+    if (active) return { ok: true, code: active.code, expiresAt: active.expiresAt, reused: true, ttlMinutes: LINK_GATE_CODE_TTL_MINUTES };
+    records = records.filter(item => item.ipHash === ipHash).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 1);
+  }
+
+  if (records[0]) {
+    const elapsed = (now - new Date(records[0].createdAt).getTime()) / 1000;
+    if (elapsed < LINK_GATE_ISSUE_COOLDOWN_SECONDS) {
+      const retryAfterSeconds = Math.max(1, Math.ceil(LINK_GATE_ISSUE_COOLDOWN_SECONDS - elapsed));
+      return { ok: false, error: 'cooldown', retryAfterSeconds, message: `Bạn vừa lấy mã. Đợi ${retryAfterSeconds} giây rồi thử lại.` };
+    }
+  }
+
+  const code = makeLinkGateCode();
+  const expiresAt = new Date(now + LINK_GATE_CODE_TTL_MINUTES * 60 * 1000);
+  const record = { code, codeHash: hashLinkGateCode(code), ipHash, createdAt: new Date(now), expiresAt, usedAt: null };
+  if (mongoDb.isMongoConnected()) await mongoDb.insertLinkGateCode(record);
+  else {
+    const all = readLocalLinkGateCodes().filter(item => new Date(item.expiresAt).getTime() > now || item.usedAt);
+    all.push({ ...record, createdAt: record.createdAt.toISOString(), expiresAt: expiresAt.toISOString() });
+    writeLocalLinkGateCodes(all);
+  }
+  return { ok: true, code, expiresAt: expiresAt.toISOString(), reused: false, ttlMinutes: LINK_GATE_CODE_TTL_MINUTES };
+}
+
+async function consumeLinkGateCode(rawCode, userId) {
+  requirePersistentLinkCodeStore();
+  const normalized = normalizeLinkGateCode(rawCode);
+  if (!normalized) return false;
+  const codeHash = hashLinkGateCode(normalized);
+  if (mongoDb.isMongoConnected()) return mongoDb.consumeLinkGateCode(codeHash, userId);
+  const records = readLocalLinkGateCodes();
+  const record = records.find(item => item.codeHash === codeHash && !item.usedAt && new Date(item.expiresAt).getTime() > Date.now());
+  if (!record) return false;
+  record.usedAt = new Date().toISOString();
+  record.usedBy = userId;
+  writeLocalLinkGateCodes(records);
+  return true;
+}
 
 function createGateToken(userId, minutes) {
-  const token = crypto.randomUUID();
-  gateTokens.set(token, {
-    userId,
-    expiresAt: Date.now() + minutes * 60 * 1000
-  });
-  return token;
+  return jwt.sign({ scope: 'link_gate', userId }, JWT_SECRET, { expiresIn: `${minutes}m` });
 }
 
 function hasValidGateToken(token, userId) {
-  const item = gateTokens.get(token);
-  if (!item) return false;
-  if (item.userId !== userId || item.expiresAt <= Date.now()) {
-    gateTokens.delete(token);
-    return false;
-  }
-  return true;
+  try {
+    const payload = jwt.verify(String(token || ''), JWT_SECRET);
+    return payload.scope === 'link_gate' && payload.userId === userId;
+  } catch { return false; }
 }
 
 async function attachUser(req, res, next) {
@@ -351,14 +441,6 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, item] of gateTokens.entries()) {
-    if (item.expiresAt <= now) gateTokens.delete(token);
-  }
-}, 10 * 60 * 1000);
-
 
 // ---------- Authentication API ----------
 app.post('/api/auth/register', async (req, res) => {
@@ -755,34 +837,49 @@ app.get('/api/link-gate/config', (req, res) => {
     enabled: !!gate.enabled,
     shortlinkUrl: gate.shortlinkUrl || '',
     passDurationMinutes: Number(gate.passDurationMinutes) || 60,
-    note: gate.note || 'Hoàn thành bước vượt link rồi nhập mã mở khóa.'
+    note: 'Vượt Link4M để lấy mã dùng một lần, rồi nhập mã tại đây.'
   });
 });
 
-app.post('/api/link-gate/verify', (req, res) => {
+app.get('/lay-ma', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'lay-ma.html'));
+});
+
+app.post('/api/link-gate/claim', async (req, res) => {
+  const gate = getAppConfig().monetization?.linkGate || {};
+  if (!gate.enabled) return res.status(400).json({ ok: false, message: 'Tính năng lấy mã đang tắt.' });
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  try {
+    const result = await issueLinkGateCode(hashLinkGateIp(ip));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(result.ok ? 200 : 429).json(result);
+  } catch (error) {
+    console.error('Could not issue Link4M code:', error.message);
+    return res.status(error.statusCode || 500).json({ ok: false, message: error.message || 'Không tạo được mã vượt link.' });
+  }
+});
+
+app.post('/api/link-gate/verify', async (req, res) => {
   if (!req.authUserRecord) {
     return res.status(401).json({ success: false, message: 'Bạn cần đăng nhập trước.' });
   }
-
-  const appConfig = getAppConfig();
-  const gate = appConfig.monetization?.linkGate || {};
-  if (!gate.enabled) return res.json({ success: true, token: null, expiresAt: null });
-
-  const passcode = String(req.body.passcode || '').trim().toUpperCase();
-  if (!getGatePasscodes(appConfig).includes(passcode)) {
-    return res.status(400).json({ success: false, message: 'Mã vượt link không đúng.' });
+  const gate = getAppConfig().monetization?.linkGate || {};
+  if (!gate.enabled || isUserVip(req.authUserRecord)) return res.json({ success: true, alreadyAllowed: true });
+  const passcode = String(req.body.passcode || req.body.code || '');
+  if (!normalizeLinkGateCode(passcode)) {
+    return res.status(400).json({ success: false, message: 'Mã không đúng định dạng. Hãy nhập mã 8 ký tự trên trang lấy mã.' });
   }
-
+  try {
+    const consumed = await consumeLinkGateCode(passcode, req.authUserRecord.id);
+    if (!consumed) return res.status(400).json({ success: false, message: 'Mã không tồn tại, đã dùng hoặc đã hết hạn. Hãy vượt link để lấy mã mới.' });
+  } catch (error) {
+    console.error('Could not consume Link4M code:', error.message);
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Không kiểm tra được mã vượt link.' });
+  }
   const minutes = Math.max(1, Number(gate.passDurationMinutes) || 60);
   const token = createGateToken(req.authUserRecord.id, minutes);
-
-  res.json({
-    success: true,
-    token,
-    expiresAt: new Date(Date.now() + minutes * 60 * 1000).toISOString()
-  });
+  return res.json({ success: true, token, expiresAt: new Date(Date.now() + minutes * 60 * 1000).toISOString() });
 });
-
 /**
  * Inspection Endpoint
  * Supports .mcpack, .mcaddon, .zip and binary ZIP detection (mobile uploads)

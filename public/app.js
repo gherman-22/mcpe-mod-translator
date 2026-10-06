@@ -184,7 +184,6 @@ const btnOpenShortlink = document.getElementById('btnOpenShortlink');
 const linkGateNote = document.getElementById('linkGateNote');
 const linkGatePasscode = document.getElementById('linkGatePasscode');
 const btnVerifyLinkGate = document.getElementById('btnVerifyLinkGate');
-
 // Donate Modal
 const btnOpenDonateModal = document.getElementById('btnOpenDonateModal');
 const btnTipFromSuccess = document.getElementById('btnTipFromSuccess');
@@ -1185,7 +1184,8 @@ async function loadCurrentUser() {
       if (res.status === 401) {
         localStorage.removeItem('mcpe_auth_token');
       }
-      return setCurrentUser(null);
+      setCurrentUser(null);
+      return;
     }
     const data = await res.json();
     setCurrentUser(data.user || null);
@@ -1493,6 +1493,7 @@ function setupAuth() {
   btnLogout.addEventListener('click', async () => {
     await authFetch('/api/auth/logout', { method: 'POST' });
     localStorage.removeItem('mcpe_auth_token');
+    linkGateToken = '';
     setCurrentUser(null);
     linkGateToken = '';
     pendingStartAfterAuth = false;
@@ -1645,28 +1646,29 @@ btnVerifyLinkGate.addEventListener('click', async () => {
     linkGateModal.classList.add('hidden');
     return openAuthModal('login');
   }
-
   const passcode = linkGatePasscode.value.trim();
-  if (!passcode) return alert('Vui lòng nhập mã sau khi vượt link.');
-
+  if (!passcode) return alert('Hãy dán mã vừa lấy từ trang sau khi vượt Link4M.');
+  btnVerifyLinkGate.disabled = true;
+  btnVerifyLinkGate.textContent = 'Đang kiểm tra mã...';
   try {
     const res = await authFetch('/api/link-gate/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ passcode })
     });
-    const data = await res.json();
-    if (!res.ok) return alert(data.message || 'Mã vượt link không đúng.');
-
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return alert(data.message || 'Mã không hợp lệ hoặc đã được sử dụng.');
     linkGateToken = data.token || '';
     linkGatePasscode.value = '';
     linkGateModal.classList.add('hidden');
     launchTranslation();
   } catch {
-    alert('Không thể xác nhận bước vượt link.');
+    alert('Không thể kiểm tra mã. Hãy thử lại sau.');
+  } finally {
+    btnVerifyLinkGate.disabled = false;
+    btnVerifyLinkGate.textContent = 'Xác nhận mã & bắt đầu dịch';
   }
 });
-
 function setupDragAndDrop() {
   dropZone.addEventListener('click', () => fileInput.click());
 
@@ -1797,7 +1799,7 @@ async function startTranslation() {
 
   if (!isVipActive && linkGateConfig?.enabled && !linkGateToken) {
     btnOpenShortlink.href = linkGateConfig.shortlinkUrl || '#';
-    linkGateNote.textContent = linkGateConfig.note || 'Hoàn thành bước vượt link rồi nhập mã mở khóa.';
+    linkGateNote.textContent = linkGateConfig.note || 'Vượt Link4M để lấy mã dùng một lần, rồi nhập mã tại đây.';
     linkGateModal.classList.remove('hidden');
     return;
   }

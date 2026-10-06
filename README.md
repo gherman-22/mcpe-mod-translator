@@ -92,7 +92,7 @@ Phiên bản này đã thêm hệ thống tài khoản ở phía server:
 - VIP được lưu trong `data/users.json` bằng trường `vipUntil` nên khi đăng nhập lại hoặc đổi trình duyệt vẫn giữ thời hạn VIP.
 - Mỗi VIP Key mặc định cộng **30 ngày**. Có thể đổi tại `monetization.vipSystem.defaultVipDays` trong `config.json`.
 - Tài khoản VIP còn hạn được phép bắt đầu dịch trực tiếp.
-- Tài khoản thường phải hoàn thành **link gate** trước khi bắt đầu dịch. Mã mở khóa được kiểm tra ở server và token vượt link có thời hạn theo `monetization.linkGate.passDurationMinutes`.
+- Tài khoản thường vượt Link4M để tới trang `/lay-ma`, nhận mã ngẫu nhiên có hạn 30 phút, rồi nhập mã vào ứng dụng. Mỗi mã chỉ dùng một lần; quyền dịch sau khi nhập mã có thời hạn theo `monetization.linkGate.passDurationMinutes`.
 - API `/api/inspect`, `/api/translate-stream`, `/api/update-entry` và `/api/download/:sessionId` đều kiểm tra tài khoản/phiên sở hữu, nên không thể chỉ sửa giao diện để bỏ qua bước VIP.
 
 ### Cấu hình VIP
@@ -108,18 +108,13 @@ Trong `config.json`:
 }
 ```
 
-### Cấu hình vượt link
+### Cài Link4M lấy mã
 
-```json
-"linkGate": {
-  "enabled": true,
-  "shortlinkUrl": "https://link1s.com/mcpe-key",
-  "passcodes": ["MCPE2026", "MODVN888", "TRANSLATE123"],
-  "passDurationMinutes": 60
-}
-```
-
-`passcodes` chỉ được đọc ở server và **không được gửi xuống trình duyệt**.
+- Trong Link4M, đặt trang đích sau khi hoàn thành là `https://mcpe-mod-translator-1.onrender.com/lay-ma`.
+- Trong `config.json`, `monetization.linkGate.shortlinkUrl` giữ link Link4M mà người dùng bấm từ ứng dụng.
+- Trên Render cần cấu hình `MONGODB_URI`; mã đang chờ, thời hạn và trạng thái đã dùng được lưu trong MongoDB.
+- Trang `/lay-ma` tự tạo hoặc hiện lại mã đang còn hạn cho cùng IP. Mã hết hạn sau 30 phút; mỗi IP chờ 3 phút trước khi tạo mã mới sau khi dùng/hết hạn.
+- Vì Link4M không gửi xác nhận hoàn thành có chữ ký cho web này, trang cấp mã không thể chứng minh chắc chắn rằng người dùng đã hoàn tất Link4M. Đây là bước vượt link nhẹ, không phải cơ chế chống gian lận mạnh.
 
 ### Chạy bản mới
 

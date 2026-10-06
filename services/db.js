@@ -13,6 +13,7 @@ let client = null;
 let db = null;
 let usersCol = null;
 let modsCol = null;
+let linkGateCodesCol = null;
 
 const MONGO_URI = process.env.MONGODB_URI || '';
 const DB_NAME = process.env.MONGODB_DB || 'mcpe_translator';
@@ -31,9 +32,13 @@ async function connectMongo() {
     db = client.db(DB_NAME);
     usersCol = db.collection('users');
     modsCol = db.collection('mods');
+    linkGateCodesCol = db.collection('link_gate_codes');
 
     // Index để tìm kiếm email nhanh
     await usersCol.createIndex({ email: 1 }, { unique: true });
+    await linkGateCodesCol.createIndex({ codeHash: 1 }, { unique: true });
+    await linkGateCodesCol.createIndex({ ipHash: 1, createdAt: -1 });
+    await linkGateCodesCol.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
     console.log('✅ MongoDB Atlas connected successfully!');
     return true;
@@ -44,6 +49,7 @@ async function connectMongo() {
     db = null;
     usersCol = null;
     modsCol = null;
+    linkGateCodesCol = null;
     return false;
   }
 }
@@ -105,10 +111,38 @@ async function deleteMod(id) {
   return r.deletedCount;
 }
 
+/** Short-lived one-use Link4M codes. The plaintext is retained only so a user
+ * refreshing the claim page can recover their still-active code by IP hash. */
+async function findActiveLinkGateCode(ipHash) {
+  if (!linkGateCodesCol) return null;
+  return linkGateCodesCol.findOne({ ipHash, usedAt: null, expiresAt: { $gt: new Date() } }, { sort: { createdAt: -1 } });
+}
+async function findLatestLinkGateCode(ipHash) {
+  if (!linkGateCodesCol) return null;
+  return linkGateCodesCol.findOne({ ipHash }, { sort: { createdAt: -1 } });
+}
+async function insertLinkGateCode(record) {
+  if (!linkGateCodesCol) return false;
+  await linkGateCodesCol.insertOne(record);
+  return true;
+}
+async function consumeLinkGateCode(codeHash, userId) {
+  if (!linkGateCodesCol) return false;
+  const result = await linkGateCodesCol.updateOne(
+    { codeHash, usedAt: null, expiresAt: { $gt: new Date() } },
+    { $set: { usedAt: new Date(), usedBy: userId } }
+  );
+  return result.modifiedCount === 1;
+}
+
 module.exports = {
   findAllMods,
   insertMod,
   deleteMod,
+  findActiveLinkGateCode,
+  findLatestLinkGateCode,
+  insertLinkGateCode,
+  consumeLinkGateCode,
   connectMongo,
   isMongoConnected,
   findAllUsers,

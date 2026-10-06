@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <title>Lấy mã vượt link — MCPE Mod Translator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+    .code { font-family: 'IBM Plex Mono', monospace; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <main class="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-4 py-10">
+    <section class="rounded-3xl border border-slate-800 bg-slate-900/90 p-6 shadow-2xl sm:p-9">
+      <div class="mb-7 flex items-center gap-3">
+        <div class="grid size-12 place-items-center rounded-2xl border border-emerald-400/30 bg-emerald-400/10 text-xl text-emerald-300">⌁</div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[.2em] text-emerald-300">MCPE Mod Translator</p>
+          <h1 class="mt-1 text-2xl font-bold">Mã mở khóa của bạn</h1>
+        </div>
+      </div>
+
+      <p class="text-sm leading-6 text-slate-300">Sao chép mã bên dưới, quay lại tab web dịch và dán vào ô xác nhận. Mỗi mã chỉ dùng được một lần.</p>
+
+      <div id="loading" class="mt-6 rounded-2xl border border-slate-700 bg-slate-950 p-6 text-center text-sm text-slate-400" aria-live="polite">Đang tạo mã…</div>
+
+      <div id="codePanel" class="mt-6 hidden rounded-2xl border border-emerald-400/30 bg-slate-950 p-5 sm:p-6">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span class="rounded-full bg-emerald-400/10 px-3 py-1 font-semibold text-emerald-300">DÙNG MỘT LẦN</span>
+          <span class="text-slate-400">Mã hết hạn sau 30 phút</span>
+        </div>
+        <p id="codeValue" class="code mt-6 break-all text-center text-4xl font-bold tracking-[.16em] text-white sm:text-5xl">----</p>
+        <button id="copyButton" type="button" class="mt-6 w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-300">Sao chép mã</button>
+        <p id="expiryText" class="mt-4 text-center text-sm text-slate-400">Mã có hiệu lực trong 30 phút.</p>
+      </div>
+
+      <div id="errorPanel" class="mt-6 hidden rounded-2xl border border-amber-400/30 bg-amber-400/5 p-5" aria-live="polite">
+        <p id="errorText" class="text-sm leading-6 text-amber-100"></p>
+        <button id="retryButton" type="button" class="mt-4 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold hover:bg-slate-700">Thử lại</button>
+      </div>
+
+      <a href="/" class="mt-7 flex w-full items-center justify-center rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800">Quay lại web dịch</a>
+      <p class="mt-5 text-center text-xs leading-5 text-slate-500">Mã sẽ hết hạn sau 30 phút. Nếu mã chưa dùng, tải lại trang sẽ hiện lại mã đang có hiệu lực.</p>
+    </section>
+  </main>
+
+  <script>
+    const loading = document.getElementById('loading');
+    const codePanel = document.getElementById('codePanel');
+    const errorPanel = document.getElementById('errorPanel');
+    const errorText = document.getElementById('errorText');
+    const codeValue = document.getElementById('codeValue');
+    const expiryText = document.getElementById('expiryText');
+    const copyButton = document.getElementById('copyButton');
+    let expiryTimer = null;
+
+    function showError(message) {
+      loading.classList.add('hidden');
+      codePanel.classList.add('hidden');
+      errorPanel.classList.remove('hidden');
+      errorText.textContent = message;
+    }
+
+    function showCode(data) {
+      loading.classList.add('hidden');
+      errorPanel.classList.add('hidden');
+      codePanel.classList.remove('hidden');
+      codeValue.textContent = data.code;
+      const expires = new Date(data.expiresAt).getTime();
+      const updateCountdown = () => {
+        const seconds = Math.max(0, Math.ceil((expires - Date.now()) / 1000));
+        if (!seconds) {
+          expiryText.textContent = 'Mã đã hết hạn. Hãy tải lại trang để lấy mã mới.';
+          copyButton.disabled = true;
+          copyButton.textContent = 'Mã đã hết hạn';
+          return clearInterval(expiryTimer);
+        }
+        const minutes = Math.floor(seconds / 60);
+        const remainder = String(seconds % 60).padStart(2, '0');
+        expiryText.textContent = `Còn ${minutes}:${remainder}. ${data.reused ? 'Đây là mã chưa dùng của bạn.' : ''}`;
+      };
+      updateCountdown();
+      clearInterval(expiryTimer);
+      expiryTimer = setInterval(updateCountdown, 1000);
+    }
+
+    async function claimCode() {
+      loading.classList.remove('hidden');
+      errorPanel.classList.add('hidden');
+      codePanel.classList.add('hidden');
+      try {
+        const response = await fetch('/api/link-gate/claim', { method: 'POST', cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (data.ok) return showCode(data);
+        if (data.error === 'cooldown') {
+          let remaining = Number(data.retryAfterSeconds) || 1;
+          loading.textContent = data.message || 'Bạn vừa lấy mã. Vui lòng đợi một chút.';
+          const timer = setInterval(() => {
+            remaining -= 1;
+            if (remaining <= 0) {
+              clearInterval(timer);
+              loading.textContent = 'Đang tạo mã…';
+              void claimCode();
+            } else {
+              loading.textContent = `Bạn vừa lấy mã. Có thể thử lại sau ${remaining} giây.`;
+            }
+          }, 1000);
+          return;
+        }
+        showError(data.message || 'Không tạo được mã. Hãy thử lại sau.');
+      } catch {
+        showError('Không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.');
+      }
+    }
+
+    copyButton.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(codeValue.textContent);
+        copyButton.textContent = 'Đã sao chép';
+        setTimeout(() => { copyButton.textContent = 'Sao chép mã'; }, 1800);
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(codeValue);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        expiryText.textContent = 'Hãy sao chép mã đã được chọn.';
+      }
+    });
+    document.getElementById('retryButton').addEventListener('click', () => void claimCode());
+    void claimCode();
+  </script>
+</body>
+</html>
