@@ -14,6 +14,7 @@ let db = null;
 let usersCol = null;
 let modsCol = null;
 let linkGateCodesCol = null;
+let linkGateStatesCol = null;
 
 const MONGO_URI = process.env.MONGODB_URI || '';
 const DB_NAME = process.env.MONGODB_DB || 'mcpe_translator';
@@ -33,12 +34,15 @@ async function connectMongo() {
     usersCol = db.collection('users');
     modsCol = db.collection('mods');
     linkGateCodesCol = db.collection('link_gate_codes');
+    linkGateStatesCol = db.collection('link_gate_states');
 
     // Index để tìm kiếm email nhanh
     await usersCol.createIndex({ email: 1 }, { unique: true });
     await linkGateCodesCol.createIndex({ codeHash: 1 }, { unique: true });
-    await linkGateCodesCol.createIndex({ ipHash: 1, createdAt: -1 });
+    await linkGateCodesCol.createIndex({ stateHash: 1, createdAt: -1 });
     await linkGateCodesCol.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    await linkGateStatesCol.createIndex({ stateHash: 1 }, { unique: true });
+    await linkGateStatesCol.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
     console.log('✅ MongoDB Atlas connected successfully!');
     return true;
@@ -50,6 +54,7 @@ async function connectMongo() {
     usersCol = null;
     modsCol = null;
     linkGateCodesCol = null;
+    linkGateStatesCol = null;
     return false;
   }
 }
@@ -111,15 +116,26 @@ async function deleteMod(id) {
   return r.deletedCount;
 }
 
-/** Short-lived one-use Link4M codes. The plaintext is retained only so a user
- * refreshing the claim page can recover their still-active code by IP hash. */
-async function findActiveLinkGateCode(ipHash) {
-  if (!linkGateCodesCol) return null;
-  return linkGateCodesCol.findOne({ ipHash, usedAt: null, expiresAt: { $gt: new Date() } }, { sort: { createdAt: -1 } });
+/** A Link4M redirect state is bound to one signed-in user and expires quickly. */
+async function insertLinkGateState(record) {
+  if (!linkGateStatesCol) return false;
+  await linkGateStatesCol.insertOne(record);
+  return true;
 }
-async function findLatestLinkGateCode(ipHash) {
+async function findLinkGateState(stateHash, userId) {
+  if (!linkGateStatesCol) return null;
+  return linkGateStatesCol.findOne({ stateHash, userId, expiresAt: { $gt: new Date() } });
+}
+async function deleteLinkGateState(stateHash, userId) {
+  if (!linkGateStatesCol) return false;
+  const result = await linkGateStatesCol.deleteOne({ stateHash, userId });
+  return result.deletedCount === 1;
+}
+
+/** Each state can have one short-lived key. It stays visible on refresh until used. */
+async function findLinkGateCodeByState(stateHash) {
   if (!linkGateCodesCol) return null;
-  return linkGateCodesCol.findOne({ ipHash }, { sort: { createdAt: -1 } });
+  return linkGateCodesCol.findOne({ stateHash }, { sort: { createdAt: -1 } });
 }
 async function insertLinkGateCode(record) {
   if (!linkGateCodesCol) return false;
@@ -127,20 +143,24 @@ async function insertLinkGateCode(record) {
   return true;
 }
 async function consumeLinkGateCode(codeHash, userId) {
-  if (!linkGateCodesCol) return false;
+  if (!linkGateCodesCol) return null;
+  const record = await linkGateCodesCol.findOne({ codeHash, userId, usedAt: null, expiresAt: { $gt: new Date() } });
+  if (!record) return null;
   const result = await linkGateCodesCol.updateOne(
-    { codeHash, usedAt: null, expiresAt: { $gt: new Date() } },
-    { $set: { usedAt: new Date(), usedBy: userId } }
+    { _id: record._id, usedAt: null },
+    { $set: { usedAt: new Date() } }
   );
-  return result.modifiedCount === 1;
+  return result.modifiedCount === 1 ? record : null;
 }
 
 module.exports = {
   findAllMods,
   insertMod,
   deleteMod,
-  findActiveLinkGateCode,
-  findLatestLinkGateCode,
+  insertLinkGateState,
+  findLinkGateState,
+  deleteLinkGateState,
+  findLinkGateCodeByState,
   insertLinkGateCode,
   consumeLinkGateCode,
   connectMongo,

@@ -45,7 +45,7 @@
       </div>
 
       <a href="/" class="mt-7 flex w-full items-center justify-center rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800">Quay lại web dịch</a>
-      <p class="mt-5 text-center text-xs leading-5 text-slate-500">Mã sẽ hết hạn sau 30 phút. Nếu mã chưa dùng, tải lại trang sẽ hiện lại mã đang có hiệu lực.</p>
+      <p class="mt-5 text-center text-xs leading-5 text-slate-500">Trang này chỉ cấp mã cho phiên được Link4M tạo từ web dịch. Mã sẽ hết hạn sau 30 phút.</p>
     </section>
   </main>
 
@@ -58,6 +58,7 @@
     const expiryText = document.getElementById('expiryText');
     const copyButton = document.getElementById('copyButton');
     let expiryTimer = null;
+    const state = new URLSearchParams(window.location.search).get('state') || '';
 
     function showError(message) {
       loading.classList.add('hidden');
@@ -93,26 +94,23 @@
       loading.classList.remove('hidden');
       errorPanel.classList.add('hidden');
       codePanel.classList.add('hidden');
+      if (!/^[A-Za-z0-9_-]{40,60}$/.test(state)) {
+        return showError('Trang lấy mã không thể mở trực tiếp. Hãy đăng nhập, chọn file dịch và bấm “Vượt link & lấy mã” trong web dịch.');
+      }
+      const token = localStorage.getItem('mcpe_auth_token');
+      if (!token) {
+        return showError('Hãy đăng nhập bằng đúng tài khoản đã mở Link4M, rồi thử lại từ web dịch.');
+      }
       try {
-        const response = await fetch('/api/link-gate/claim', { method: 'POST', cache: 'no-store' });
+        const response = await fetch('/api/link-gate/claim', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ state })
+        });
         const data = await response.json().catch(() => ({}));
         if (data.ok) return showCode(data);
-        if (data.error === 'cooldown') {
-          let remaining = Number(data.retryAfterSeconds) || 1;
-          loading.textContent = data.message || 'Bạn vừa lấy mã. Vui lòng đợi một chút.';
-          const timer = setInterval(() => {
-            remaining -= 1;
-            if (remaining <= 0) {
-              clearInterval(timer);
-              loading.textContent = 'Đang tạo mã…';
-              void claimCode();
-            } else {
-              loading.textContent = `Bạn vừa lấy mã. Có thể thử lại sau ${remaining} giây.`;
-            }
-          }, 1000);
-          return;
-        }
-        showError(data.message || 'Không tạo được mã. Hãy thử lại sau.');
+        showError(data.message || 'Không thể xác nhận lượt Link4M. Hãy bắt đầu lại từ web dịch.');
       } catch {
         showError('Không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.');
       }

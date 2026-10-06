@@ -284,8 +284,11 @@ function getVipTierInfo(key, appConfig) {
 }
 
 const LINK_GATE_CODES_FILE = path.join(__dirname, 'data', 'link-gate-codes.json');
+const LINK_GATE_STATES_FILE = path.join(__dirname, 'data', 'link-gate-states.json');
 const LINK_GATE_CODE_TTL_MINUTES = 30;
-const LINK_GATE_ISSUE_COOLDOWN_SECONDS = 180;
+const LINK_GATE_STATE_TTL_MINUTES = 20;
+const LINK4M_SHORTEN_API = 'https://link4m.co/api-shorten/v2';
+const DEFAULT_PUBLIC_APP_URL = 'https://mcpe-mod-translator-1.onrender.com';
 
 function normalizeLinkGateCode(raw) {
   const value = String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -296,8 +299,8 @@ function hashLinkGateCode(raw) {
   return crypto.createHash('sha256').update(normalizeLinkGateCode(raw)).digest('hex');
 }
 
-function hashLinkGateIp(ip) {
-  return crypto.createHash('sha256').update(`${JWT_SECRET}:link-gate:${ip}`).digest('hex');
+function hashLinkGateState(state) {
+  return crypto.createHash('sha256').update(`link-gate-state:${state}`).digest('hex');
 }
 
 function makeLinkGateCode() {
@@ -316,47 +319,80 @@ function requirePersistentLinkCodeStore() {
   }
 }
 
-function readLocalLinkGateCodes() {
+function readLocalJson(file) {
   try {
-    const data = JSON.parse(fs.readFileSync(LINK_GATE_CODES_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
     return Array.isArray(data) ? data : [];
   } catch { return []; }
 }
 
-function writeLocalLinkGateCodes(records) {
-  fs.mkdirSync(path.dirname(LINK_GATE_CODES_FILE), { recursive: true });
-  const temp = `${LINK_GATE_CODES_FILE}.tmp`;
+function writeLocalJson(file, records) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temp = `${file}.tmp`;
   fs.writeFileSync(temp, JSON.stringify(records, null, 2));
-  fs.renameSync(temp, LINK_GATE_CODES_FILE);
+  fs.renameSync(temp, file);
 }
 
-async function issueLinkGateCode(ipHash) {
+function readLocalLinkGateCodes() { return readLocalJson(LINK_GATE_CODES_FILE); }
+function writeLocalLinkGateCodes(records) { writeLocalJson(LINK_GATE_CODES_FILE, records); }
+function readLocalLinkGateStates() { return readLocalJson(LINK_GATE_STATES_FILE); }
+function writeLocalLinkGateStates(records) { writeLocalJson(LINK_GATE_STATES_FILE, records); }
+
+async function createLinkGateState(userId) {
   requirePersistentLinkCodeStore();
   const now = Date.now();
-  let records;
+  const state = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(now + LINK_GATE_STATE_TTL_MINUTES * 60 * 1000);
+  const record = { stateHash: hashLinkGateState(state), userId, createdAt: new Date(now), expiresAt };
   if (mongoDb.isMongoConnected()) {
-    const active = await mongoDb.findActiveLinkGateCode(ipHash);
-    if (active) return { ok: true, code: active.code, expiresAt: new Date(active.expiresAt).toISOString(), reused: true, ttlMinutes: LINK_GATE_CODE_TTL_MINUTES };
-    const latest = await mongoDb.findLatestLinkGateCode(ipHash);
-    records = latest ? [{ createdAt: latest.createdAt }] : [];
+    await mongoDb.insertLinkGateState(record);
   } else {
-    records = readLocalLinkGateCodes().filter(item => new Date(item.expiresAt).getTime() > now || item.usedAt);
-    const active = records.find(item => item.ipHash === ipHash && !item.usedAt && new Date(item.expiresAt).getTime() > now);
-    if (active) return { ok: true, code: active.code, expiresAt: active.expiresAt, reused: true, ttlMinutes: LINK_GATE_CODE_TTL_MINUTES };
-    records = records.filter(item => item.ipHash === ipHash).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 1);
+    const records = readLocalLinkGateStates().filter(item => new Date(item.expiresAt).getTime() > now);
+    records.push({ ...record, createdAt: record.createdAt.toISOString(), expiresAt: expiresAt.toISOString() });
+    writeLocalLinkGateStates(records);
   }
+  return { state, stateHash: record.stateHash, expiresAt };
+}
 
-  if (records[0]) {
-    const elapsed = (now - new Date(records[0].createdAt).getTime()) / 1000;
-    if (elapsed < LINK_GATE_ISSUE_COOLDOWN_SECONDS) {
-      const retryAfterSeconds = Math.max(1, Math.ceil(LINK_GATE_ISSUE_COOLDOWN_SECONDS - elapsed));
-      return { ok: false, error: 'cooldown', retryAfterSeconds, message: `Bạn vừa lấy mã. Đợi ${retryAfterSeconds} giây rồi thử lại.` };
+async function hasLinkGateState(stateHash, userId) {
+  requirePersistentLinkCodeStore();
+  if (mongoDb.isMongoConnected()) {
+    return !!(await mongoDb.findLinkGateState(stateHash, userId));
+  }
+  return readLocalLinkGateStates().some(item => item.stateHash === stateHash && item.userId === userId && new Date(item.expiresAt).getTime() > Date.now());
+}
+
+async function deleteLinkGateState(stateHash, userId) {
+  if (mongoDb.isMongoConnected()) return mongoDb.deleteLinkGateState(stateHash, userId);
+  const records = readLocalLinkGateStates();
+  const rest = records.filter(item => !(item.stateHash === stateHash && item.userId === userId));
+  if (rest.length === records.length) return false;
+  writeLocalLinkGateStates(rest);
+  return true;
+}
+
+async function issueLinkGateCode(stateHash, userId) {
+  requirePersistentLinkCodeStore();
+  const now = Date.now();
+  let existing;
+  if (mongoDb.isMongoConnected()) {
+    existing = await mongoDb.findLinkGateCodeByState(stateHash);
+  } else {
+    existing = readLocalLinkGateCodes().filter(item => item.stateHash === stateHash).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  }
+  if (existing) {
+    if (existing.userId !== userId || existing.usedAt) {
+      return { ok: false, message: 'Phiên lấy mã này đã được sử dụng. Hãy bắt đầu lại từ web dịch.' };
     }
+    if (new Date(existing.expiresAt).getTime() <= now) {
+      return { ok: false, message: 'Mã đã hết hạn. Hãy bắt đầu lại từ web dịch.' };
+    }
+    return { ok: true, code: existing.code, expiresAt: new Date(existing.expiresAt).toISOString(), reused: true, ttlMinutes: LINK_GATE_CODE_TTL_MINUTES };
   }
 
   const code = makeLinkGateCode();
   const expiresAt = new Date(now + LINK_GATE_CODE_TTL_MINUTES * 60 * 1000);
-  const record = { code, codeHash: hashLinkGateCode(code), ipHash, createdAt: new Date(now), expiresAt, usedAt: null };
+  const record = { code, codeHash: hashLinkGateCode(code), stateHash, userId, createdAt: new Date(now), expiresAt, usedAt: null };
   if (mongoDb.isMongoConnected()) await mongoDb.insertLinkGateCode(record);
   else {
     const all = readLocalLinkGateCodes().filter(item => new Date(item.expiresAt).getTime() > now || item.usedAt);
@@ -373,12 +409,57 @@ async function consumeLinkGateCode(rawCode, userId) {
   const codeHash = hashLinkGateCode(normalized);
   if (mongoDb.isMongoConnected()) return mongoDb.consumeLinkGateCode(codeHash, userId);
   const records = readLocalLinkGateCodes();
-  const record = records.find(item => item.codeHash === codeHash && !item.usedAt && new Date(item.expiresAt).getTime() > Date.now());
-  if (!record) return false;
+  const record = records.find(item => item.codeHash === codeHash && item.userId === userId && !item.usedAt && new Date(item.expiresAt).getTime() > Date.now());
+  if (!record) return null;
   record.usedAt = new Date().toISOString();
-  record.usedBy = userId;
   writeLocalLinkGateCodes(records);
-  return true;
+  return record;
+}
+
+function getPublicAppOrigin() {
+  try {
+    return new URL(process.env.PUBLIC_APP_URL || DEFAULT_PUBLIC_APP_URL).origin;
+  } catch {
+    const error = new Error('PUBLIC_APP_URL không hợp lệ trên server.');
+    error.statusCode = 503;
+    throw error;
+  }
+}
+
+async function createLink4mShortUrl(destinationUrl) {
+  const apiToken = String(process.env.LINK4M_API_TOKEN || '').trim();
+  if (!apiToken) {
+    const error = new Error('Chưa cấu hình LINK4M_API_TOKEN trên Render.');
+    error.statusCode = 503;
+    throw error;
+  }
+  const apiUrl = new URL(LINK4M_SHORTEN_API);
+  apiUrl.searchParams.set('api', apiToken);
+  apiUrl.searchParams.set('url', destinationUrl);
+  let response;
+  try {
+    response = await fetch(apiUrl, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(12000) });
+  } catch {
+    const error = new Error('Không kết nối được API Link4M. Hãy thử lại sau.');
+    error.statusCode = 502;
+    throw error;
+  }
+  const data = await response.json().catch(() => ({}));
+  const shortenedUrl = String(data.shortenedUrl || '');
+  if (!response.ok || !shortenedUrl) {
+    const error = new Error('Link4M không tạo được link mới. Hãy kiểm tra token API trên Render.');
+    error.statusCode = 502;
+    throw error;
+  }
+  try {
+    const parsed = new URL(shortenedUrl);
+    if (parsed.protocol !== 'https:' || !/(^|\.)link4m\.(co|com|org)$/i.test(parsed.hostname)) throw new Error('invalid');
+  } catch {
+    const error = new Error('API Link4M trả về link không hợp lệ.');
+    error.statusCode = 502;
+    throw error;
+  }
+  return shortenedUrl;
 }
 
 function createGateToken(userId, minutes) {
@@ -835,7 +916,6 @@ app.get('/api/link-gate/config', (req, res) => {
   const gate = getAppConfig().monetization?.linkGate || {};
   res.json({
     enabled: !!gate.enabled,
-    shortlinkUrl: gate.shortlinkUrl || '',
     passDurationMinutes: Number(gate.passDurationMinutes) || 60,
     note: 'Vượt Link4M để lấy mã dùng một lần, rồi nhập mã tại đây.'
   });
@@ -845,14 +925,38 @@ app.get('/lay-ma', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'lay-ma.html'));
 });
 
+app.post('/api/link-gate/start', async (req, res) => {
+  if (!req.authUserRecord) return res.status(401).json({ success: false, message: 'Bạn cần đăng nhập trước.' });
+  const gate = getAppConfig().monetization?.linkGate || {};
+  if (!gate.enabled || isUserVip(req.authUserRecord)) return res.json({ success: true, alreadyAllowed: true });
+
+  try {
+    const state = await createLinkGateState(req.authUserRecord.id);
+    const destination = `${getPublicAppOrigin()}/lay-ma?state=${encodeURIComponent(state.state)}`;
+    const shortlinkUrl = await createLink4mShortUrl(destination);
+    return res.json({ success: true, shortlinkUrl, expiresAt: state.expiresAt.toISOString() });
+  } catch (error) {
+    console.error('Could not create Link4M gate:', error.message);
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Không thể tạo Link4M. Hãy thử lại sau.' });
+  }
+});
+
 app.post('/api/link-gate/claim', async (req, res) => {
   const gate = getAppConfig().monetization?.linkGate || {};
   if (!gate.enabled) return res.status(400).json({ ok: false, message: 'Tính năng lấy mã đang tắt.' });
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  if (!req.authUserRecord) return res.status(401).json({ ok: false, message: 'Hãy đăng nhập đúng tài khoản đã mở Link4M, rồi tải lại trang.' });
+  const state = String(req.body.state || '');
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(state)) {
+    return res.status(403).json({ ok: false, message: 'Trang lấy mã chỉ hoạt động khi được mở từ Link4M. Hãy bắt đầu lại từ web dịch.' });
+  }
   try {
-    const result = await issueLinkGateCode(hashLinkGateIp(ip));
+    const stateHash = hashLinkGateState(state);
+    if (!(await hasLinkGateState(stateHash, req.authUserRecord.id))) {
+      return res.status(403).json({ ok: false, message: 'Phiên Link4M không hợp lệ, đã hết hạn hoặc thuộc tài khoản khác. Hãy bắt đầu lại từ web dịch.' });
+    }
+    const result = await issueLinkGateCode(stateHash, req.authUserRecord.id);
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(result.ok ? 200 : 429).json(result);
+    return res.status(result.ok ? 200 : 400).json(result);
   } catch (error) {
     console.error('Could not issue Link4M code:', error.message);
     return res.status(error.statusCode || 500).json({ ok: false, message: error.message || 'Không tạo được mã vượt link.' });
@@ -872,6 +976,7 @@ app.post('/api/link-gate/verify', async (req, res) => {
   try {
     const consumed = await consumeLinkGateCode(passcode, req.authUserRecord.id);
     if (!consumed) return res.status(400).json({ success: false, message: 'Mã không tồn tại, đã dùng hoặc đã hết hạn. Hãy vượt link để lấy mã mới.' });
+    await deleteLinkGateState(consumed.stateHash, req.authUserRecord.id);
   } catch (error) {
     console.error('Could not consume Link4M code:', error.message);
     return res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Không kiểm tra được mã vượt link.' });

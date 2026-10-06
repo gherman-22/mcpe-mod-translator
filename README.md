@@ -110,11 +110,11 @@ Trong `config.json`:
 
 ### Cài Link4M lấy mã
 
-- Trong Link4M, đặt trang đích sau khi hoàn thành là `https://mcpe-mod-translator-1.onrender.com/lay-ma`.
-- Trong `config.json`, `monetization.linkGate.shortlinkUrl` giữ link Link4M mà người dùng bấm từ ứng dụng.
-- Trên Render cần cấu hình `MONGODB_URI`; mã đang chờ, thời hạn và trạng thái đã dùng được lưu trong MongoDB.
-- Trang `/lay-ma` tự tạo hoặc hiện lại mã đang còn hạn cho cùng IP. Mã hết hạn sau 30 phút; mỗi IP chờ 3 phút trước khi tạo mã mới sau khi dùng/hết hạn.
-- Vì Link4M không gửi xác nhận hoàn thành có chữ ký cho web này, trang cấp mã không thể chứng minh chắc chắn rằng người dùng đã hoàn tất Link4M. Đây là bước vượt link nhẹ, không phải cơ chế chống gian lận mạnh.
+- Trên Render, tạo biến môi trường `LINK4M_API_TOKEN` bằng token API Link4M. Không thêm token vào `config.json`, GitHub, hay mã nguồn.
+- Có thể tạo thêm `PUBLIC_APP_URL=https://mcpe-mod-translator-1.onrender.com` nếu sau này đổi tên miền; mặc định hiện tại đã là địa chỉ Render này.
+- Khi người dùng bấm nút vượt link, server tạo một Link4M mới cho riêng lượt đó. Đích của link là `/lay-ma?state=...`, trong đó state là chuỗi ngẫu nhiên gắn với tài khoản đang đăng nhập, hết hạn sau 20 phút.
+- Mở `/lay-ma` trực tiếp không có state sẽ không nhận được mã. State bị lộ cũng không dùng được trên tài khoản khác. Key nhận được hết hạn sau 30 phút và chỉ dùng một lần.
+- Trên Render cần cấu hình `MONGODB_URI`; state chờ và trạng thái key được lưu trong MongoDB.
 
 ### Chạy bản mới
 

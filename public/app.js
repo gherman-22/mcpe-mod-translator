@@ -1641,6 +1641,35 @@ async function handleVipKeySubmit(e) {
 
 if (vipKeyForm) vipKeyForm.addEventListener('submit', handleVipKeySubmit);
 
+btnOpenShortlink.addEventListener('click', async (event) => {
+  event.preventDefault();
+  if (!currentUser) {
+    linkGateModal.classList.add('hidden');
+    return openAuthModal('login');
+  }
+
+  const tab = window.open('about:blank', '_blank');
+  if (!tab) return alert('Trình duyệt đã chặn cửa sổ mới. Hãy cho phép cửa sổ bật lên rồi thử lại.');
+
+  btnOpenShortlink.classList.add('opacity-60', 'pointer-events-none');
+  try {
+    const res = await authFetch('/api/link-gate/start', { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Không thể tạo Link4M.');
+    if (data.alreadyAllowed) {
+      tab.close();
+      linkGateModal.classList.add('hidden');
+      return launchTranslation();
+    }
+    tab.location.replace(data.shortlinkUrl);
+  } catch (error) {
+    tab.close();
+    alert(error.message || 'Không thể mở Link4M.');
+  } finally {
+    btnOpenShortlink.classList.remove('opacity-60', 'pointer-events-none');
+  }
+});
+
 btnVerifyLinkGate.addEventListener('click', async () => {
   if (!currentUser) {
     linkGateModal.classList.add('hidden');
@@ -1798,7 +1827,7 @@ async function startTranslation() {
   }
 
   if (!isVipActive && linkGateConfig?.enabled && !linkGateToken) {
-    btnOpenShortlink.href = linkGateConfig.shortlinkUrl || '#';
+    btnOpenShortlink.href = '#';
     linkGateNote.textContent = linkGateConfig.note || 'Vượt Link4M để lấy mã dùng một lần, rồi nhập mã tại đây.';
     linkGateModal.classList.remove('hidden');
     return;
