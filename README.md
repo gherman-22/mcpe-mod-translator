@@ -92,7 +92,7 @@ Phiên bản này đã thêm hệ thống tài khoản ở phía server:
 - VIP được lưu trong `data/users.json` bằng trường `vipUntil` nên khi đăng nhập lại hoặc đổi trình duyệt vẫn giữ thời hạn VIP.
 - Mỗi VIP Key mặc định cộng **30 ngày**. Có thể đổi tại `monetization.vipSystem.defaultVipDays` trong `config.json`.
 - Tài khoản VIP còn hạn được phép bắt đầu dịch trực tiếp.
-- Tài khoản thường phải hoàn thành **link gate** trước khi bắt đầu dịch. Mã mở khóa được kiểm tra ở server và token vượt link có thời hạn theo `monetization.linkGate.passDurationMinutes`.
+- Tài khoản thường hoàn thành Link4M rồi được tự động quay về ứng dụng; không cần nhập mã lần hai. Quyền dịch có thời hạn theo `monetization.linkGate.passDurationMinutes`.
 - API `/api/inspect`, `/api/translate-stream`, `/api/update-entry` và `/api/download/:sessionId` đều kiểm tra tài khoản/phiên sở hữu, nên không thể chỉ sửa giao diện để bỏ qua bước VIP.
 
 ### Cấu hình VIP
@@ -108,18 +108,12 @@ Trong `config.json`:
 }
 ```
 
-### Cấu hình vượt link
+### Cài Link4M để tự quay về
 
-```json
-"linkGate": {
-  "enabled": true,
-  "shortlinkUrl": "https://link1s.com/mcpe-key",
-  "passcodes": ["MCPE2026", "MODVN888", "TRANSLATE123"],
-  "passDurationMinutes": 60
-}
-```
-
-`passcodes` chỉ được đọc ở server và **không được gửi xuống trình duyệt**.
+- Trong Link4M, đặt trang đích sau khi hoàn thành là `https://mcpe-mod-translator-1.onrender.com/link-gate/complete`.
+- Trong `config.json`, `monetization.linkGate.shortlinkUrl` phải là link Link4M người dùng bấm để bắt đầu.
+- Trên Render cần cấu hình `MONGODB_URI`; challenge đang chờ quay về được lưu ở MongoDB. Challenge gắn với tài khoản đã đăng nhập và dùng một lần.
+- Đây là luồng quay về trình duyệt. Link4M không cung cấp cho ứng dụng bằng chứng callback máy chủ có chữ ký trong cách tích hợp này, nên đây là bản thử nghiệm chứ chưa phải xác nhận thanh toán hay chống gian lận mạnh.
 
 ### Chạy bản mới
 

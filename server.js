@@ -46,6 +46,13 @@ const DEFAULT_CONFIG = {
     downloadGate: {
       countdownSeconds: 5,
       adBannerHtml: ""
+    },
+    linkGate: {
+      enabled: true,
+      passcodes: [],
+      passDurationMinutes: 60,
+      shortlinkUrl: "",
+      note: "Hoàn thành bước vượt link rồi nhập mã dùng một lần."
     }
   }
 };
@@ -275,31 +282,58 @@ function getVipTierInfo(key, appConfig) {
   return null;
 }
 
-function getGatePasscodes(appConfig) {
-  return (appConfig?.monetization?.linkGate?.passcodes || [])
-    .map(x => String(x).trim().toUpperCase())
-    .filter(Boolean);
+const LINK_GATE_CHALLENGES_FILE = path.join(__dirname, 'data', 'link-gate-challenges.json');
+const LINK_GATE_RETURN_COOKIE = 'mcpe_link_gate_return';
+
+function hashLinkGateChallenge(challenge) {
+  return crypto.createHash('sha256').update(String(challenge)).digest('hex');
 }
 
-const gateTokens = new Map();
+function requirePersistentLinkChallengeStore() {
+  if (process.env.NODE_ENV === 'production' && !mongoDb.isMongoConnected()) {
+    const error = new Error('Cần kết nối MongoDB trên Render để hoàn tất bước vượt link.');
+    error.statusCode = 503;
+    throw error;
+  }
+}
+
+async function storeLinkGateChallenge(challengeHash, userId, expiresAt) {
+  requirePersistentLinkChallengeStore();
+  if (mongoDb.isMongoConnected()) return mongoDb.insertLinkGateChallenge(challengeHash, userId, expiresAt);
+  let entries = [];
+  try { entries = JSON.parse(fs.readFileSync(LINK_GATE_CHALLENGES_FILE, 'utf8')); } catch {}
+  entries = entries.filter(entry => new Date(entry.expiresAt).getTime() > Date.now());
+  entries.push({ challengeHash, userId, expiresAt });
+  fs.mkdirSync(path.dirname(LINK_GATE_CHALLENGES_FILE), { recursive: true });
+  const temp = `${LINK_GATE_CHALLENGES_FILE}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(entries));
+  fs.renameSync(temp, LINK_GATE_CHALLENGES_FILE);
+  return true;
+}
+
+async function consumeLinkGateChallenge(challengeHash, userId) {
+  requirePersistentLinkChallengeStore();
+  if (mongoDb.isMongoConnected()) return mongoDb.consumeLinkGateChallenge(challengeHash, userId);
+  let entries = [];
+  try { entries = JSON.parse(fs.readFileSync(LINK_GATE_CHALLENGES_FILE, 'utf8')); } catch {}
+  const index = entries.findIndex(entry => entry.challengeHash === challengeHash && entry.userId === userId && new Date(entry.expiresAt).getTime() > Date.now());
+  if (index < 0) return false;
+  entries.splice(index, 1);
+  const temp = `${LINK_GATE_CHALLENGES_FILE}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(entries));
+  fs.renameSync(temp, LINK_GATE_CHALLENGES_FILE);
+  return true;
+}
 
 function createGateToken(userId, minutes) {
-  const token = crypto.randomUUID();
-  gateTokens.set(token, {
-    userId,
-    expiresAt: Date.now() + minutes * 60 * 1000
-  });
-  return token;
+  return jwt.sign({ scope: 'link_gate', userId }, JWT_SECRET, { expiresIn: `${minutes}m` });
 }
 
 function hasValidGateToken(token, userId) {
-  const item = gateTokens.get(token);
-  if (!item) return false;
-  if (item.userId !== userId || item.expiresAt <= Date.now()) {
-    gateTokens.delete(token);
-    return false;
-  }
-  return true;
+  try {
+    const payload = jwt.verify(String(token || ''), JWT_SECRET);
+    return payload.scope === 'link_gate' && payload.userId === userId;
+  } catch { return false; }
 }
 
 async function attachUser(req, res, next) {
@@ -351,14 +385,6 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, item] of gateTokens.entries()) {
-    if (item.expiresAt <= now) gateTokens.delete(token);
-  }
-}, 10 * 60 * 1000);
-
 
 // ---------- Authentication API ----------
 app.post('/api/auth/register', async (req, res) => {
@@ -755,27 +781,71 @@ app.get('/api/link-gate/config', (req, res) => {
     enabled: !!gate.enabled,
     shortlinkUrl: gate.shortlinkUrl || '',
     passDurationMinutes: Number(gate.passDurationMinutes) || 60,
-    note: gate.note || 'Hoàn thành bước vượt link rồi nhập mã mở khóa.'
+    note: gate.note || 'Hoàn thành Link4M; trang sẽ tự quay lại và mở khóa.'
   });
 });
 
-app.post('/api/link-gate/verify', (req, res) => {
+app.post('/api/link-gate/start', async (req, res) => {
   if (!req.authUserRecord) {
     return res.status(401).json({ success: false, message: 'Bạn cần đăng nhập trước.' });
   }
-
   const appConfig = getAppConfig();
   const gate = appConfig.monetization?.linkGate || {};
-  if (!gate.enabled) return res.json({ success: true, token: null, expiresAt: null });
-
-  const passcode = String(req.body.passcode || '').trim().toUpperCase();
-  if (!getGatePasscodes(appConfig).includes(passcode)) {
-    return res.status(400).json({ success: false, message: 'Mã vượt link không đúng.' });
+  if (!gate.enabled || isUserVip(req.authUserRecord)) return res.json({ success: true, alreadyAllowed: true });
+  if (!gate.shortlinkUrl) return res.status(503).json({ success: false, message: 'Chưa cài link Link4M.' });
+  const challenge = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
+  try {
+    await storeLinkGateChallenge(hashLinkGateChallenge(challenge), req.authUserRecord.id, expiresAt);
+  } catch (error) {
+    console.error('Could not store Link4M challenge:', error.message);
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Không thể bắt đầu bước Link4M.' });
   }
+  res.json({ success: true, challenge, shortlinkUrl: gate.shortlinkUrl, expiresAt: expiresAt.toISOString() });
+});
 
+function signLinkGateReceipt(timestamp) {
+  return crypto.createHmac('sha256', JWT_SECRET).update(`link4m:${timestamp}`).digest('hex');
+}
+
+function hasLinkGateReceipt(req) {
+  const match = String(req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${LINK_GATE_RETURN_COOKIE}=([^;]+)`));
+  if (!match) return false;
+  const [timestamp, signature] = decodeURIComponent(match[1]).split('.');
+  if (!/^\d+$/.test(timestamp) || Date.now() - Number(timestamp) > 5 * 60 * 1000) return false;
+  const expected = signLinkGateReceipt(timestamp);
+  return signature && signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+app.get('/link-gate/complete', (req, res) => {
+  let referer;
+  try { referer = new URL(req.get('referer') || ''); } catch { referer = null; }
+  const fromLink4m = referer && /(^|\.)link4m\.(org|com)$/i.test(referer.hostname);
+  const refererHeader = req.get('referer');
+  if (req.get('sec-fetch-site') !== 'cross-site' || (refererHeader && !fromLink4m)) {
+    return res.status(403).send('Không nhận diện được lượt quay về từ Link4M. Hãy hoàn tất Link4M rồi thử lại.');
+  }
+  const timestamp = String(Date.now());
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `${LINK_GATE_RETURN_COOKIE}=${timestamp}.${signLinkGateReceipt(timestamp)}; HttpOnly; SameSite=Lax; Path=/api/link-gate/complete; Max-Age=300${secure}`);
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.post('/api/link-gate/complete', async (req, res) => {
+  if (!req.authUserRecord) return res.status(401).json({ success: false, message: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.' });
+  if (!hasLinkGateReceipt(req)) return res.status(403).json({ success: false, message: 'Hãy mở Link4M và để trang tự quay lại ứng dụng.' });
+  const challenge = String(req.body.challenge || '');
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(challenge)) return res.status(400).json({ success: false, message: 'Phiên Link4M không hợp lệ hoặc đã hết hạn.' });
+  try {
+    const consumed = await consumeLinkGateChallenge(hashLinkGateChallenge(challenge), req.authUserRecord.id);
+    if (!consumed) return res.status(400).json({ success: false, message: 'Phiên Link4M đã hết hạn hoặc đã được sử dụng.' });
+  } catch (error) {
+    console.error('Could not consume Link4M challenge:', error.message);
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Không xác nhận được lượt quay về.' });
+  }
+  const gate = getAppConfig().monetization?.linkGate || {};
   const minutes = Math.max(1, Number(gate.passDurationMinutes) || 60);
   const token = createGateToken(req.authUserRecord.id, minutes);
-
   res.json({
     success: true,
     token,
