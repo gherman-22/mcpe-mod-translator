@@ -1720,6 +1720,18 @@ btnOpenShortlink.addEventListener('click', async (event) => {
   }
 });
 
+// The Link4M callback runs in a separate tab. When it stores the temporary
+// access token, resume the translation in the original tab that still owns
+// the uploaded file session.
+window.addEventListener('storage', (event) => {
+  if (event.key !== LINK_GATE_TOKEN_KEY || !event.newValue) return;
+  const expiresAt = Number(localStorage.getItem(LINK_GATE_EXPIRY_KEY) || 0);
+  if (expiresAt <= Date.now() || !currentSessionId || !currentUser) return;
+  linkGateToken = event.newValue;
+  linkGateModal.classList.add('hidden');
+  launchTranslation();
+});
+
 function setupDragAndDrop() {
   dropZone.addEventListener('click', () => fileInput.click());
 
