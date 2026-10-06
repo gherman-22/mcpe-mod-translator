@@ -13,7 +13,6 @@ let client = null;
 let db = null;
 let usersCol = null;
 let modsCol = null;
-let linkGateChallengesCol = null;
 
 const MONGO_URI = process.env.MONGODB_URI || '';
 const DB_NAME = process.env.MONGODB_DB || 'mcpe_translator';
@@ -32,12 +31,9 @@ async function connectMongo() {
     db = client.db(DB_NAME);
     usersCol = db.collection('users');
     modsCol = db.collection('mods');
-    linkGateChallengesCol = db.collection('link_gate_challenges');
 
     // Index để tìm kiếm email nhanh
     await usersCol.createIndex({ email: 1 }, { unique: true });
-    await linkGateChallengesCol.createIndex({ challengeHash: 1 }, { unique: true });
-    await linkGateChallengesCol.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
     console.log('✅ MongoDB Atlas connected successfully!');
     return true;
@@ -48,7 +44,6 @@ async function connectMongo() {
     db = null;
     usersCol = null;
     modsCol = null;
-    linkGateChallengesCol = null;
     return false;
   }
 }
@@ -110,24 +105,10 @@ async function deleteMod(id) {
   return r.deletedCount;
 }
 
-/** Link4M return challenges: hashes only, consumed atomically. */
-async function insertLinkGateChallenge(challengeHash, userId, expiresAt) {
-  if (!linkGateChallengesCol) return false;
-  await linkGateChallengesCol.insertOne({ challengeHash, userId, expiresAt });
-  return true;
-}
-async function consumeLinkGateChallenge(challengeHash, userId) {
-  if (!linkGateChallengesCol) return false;
-  const result = await linkGateChallengesCol.deleteOne({ challengeHash, userId, expiresAt: { $gt: new Date() } });
-  return result.deletedCount === 1;
-}
-
 module.exports = {
   findAllMods,
   insertMod,
   deleteMod,
-  insertLinkGateChallenge,
-  consumeLinkGateChallenge,
   connectMongo,
   isMongoConnected,
   findAllUsers,

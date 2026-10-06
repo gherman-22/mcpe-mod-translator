@@ -89,10 +89,14 @@
     },
     "linkGate": {
       "enabled": true,
-      "shortlinkUrl": "https://link4m.org/iMwzD",
-      "passcodes": [],
+      "shortlinkUrl": "https://link4m.org/DFnvFiB6",
+      "passcodes": [
+        "MCPE2026",
+        "MODVN888",
+        "TRANSLATE123"
+      ],
       "passDurationMinutes": 60,
-      "note": "Hoàn thành Link4M; trang sẽ tự quay lại và mở khóa dịch trong 60 phút."
+      "note": "Vượt link rút gọn để lấy mã mở khóa 60 phút miễn phí (hoặc mua VIP để dịch ngay không cần vượt link)"
     },
     "downloadGate": {
       "countdownSeconds": 5,
