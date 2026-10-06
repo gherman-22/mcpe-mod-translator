@@ -822,7 +822,10 @@ app.get('/link-gate/complete', (req, res) => {
   try { referer = new URL(req.get('referer') || ''); } catch { referer = null; }
   const fromLink4m = referer && /(^|\.)link4m\.(org|com)$/i.test(referer.hostname);
   const refererHeader = req.get('referer');
-  if (req.get('sec-fetch-site') !== 'cross-site' || (refererHeader && !fromLink4m)) {
+  // Mobile browsers often omit Sec-Fetch-Site during Link4M's redirect.
+  // Accept a Link4M referrer when present, and allow missing referrer headers
+  // for privacy-focused browsers; still reject an explicit unrelated referrer.
+  if (refererHeader && !fromLink4m) {
     return res.status(403).send('Không nhận diện được lượt quay về từ Link4M. Hãy hoàn tất Link4M rồi thử lại.');
   }
   const timestamp = String(Date.now());
