@@ -58,7 +58,7 @@ class TranslatorService {
         }
       }
     } else {
-      translated = maskedText;
+      throw new Error('Google Translate không trả về nội dung dịch.');
     }
 
     // Restore Minecraft codes
@@ -73,6 +73,7 @@ class TranslatorService {
     const BATCH_SIZE = 15;
     const results = [...texts];
     const DELIMITER = ' ___MC_SPLIT___ ';
+    let failedItems = 0;
 
     for (let i = 0; i < texts.length; i += BATCH_SIZE) {
       const chunk = texts.slice(i, i + BATCH_SIZE);
@@ -109,8 +110,16 @@ class TranslatorService {
           }
         }
 
+        if (!fullTranslated) {
+          throw new Error('Google Translate không trả về nội dung dịch.');
+        }
+
         // Split back by delimiter (flexible regex for spacing)
         const translatedParts = fullTranslated.split(/\s*___MC_SPLIT___\s*/);
+
+        if (translatedParts.length !== chunk.length) {
+          throw new Error('Google Translate trả về dữ liệu theo lô không hợp lệ.');
+        }
 
         for (let j = 0; j < chunk.length; j++) {
           const trans = translatedParts[j] || maskedChunks[j];
@@ -123,7 +132,8 @@ class TranslatorService {
           try {
             results[i + j] = await this.translateWithGoogleSingle(chunk[j], targetLang);
           } catch (e) {
-            results[i + j] = chunk[j]; // keep original on complete failure
+            failedItems += 1;
+            results[i + j] = chunk[j];
           }
         }
       }
@@ -136,6 +146,10 @@ class TranslatorService {
       await new Promise(r => setTimeout(r, 120));
     }
 
+    if (failedItems > 0) {
+      throw new Error('Google Dịch không phản hồi đầy đủ. Hãy cấu hình GEMINI_API_KEY trên Render để web tự dịch ổn định.');
+    }
+
     return results;
   }
 
@@ -144,7 +158,7 @@ class TranslatorService {
    */
   static async translateBatchWithGemini(entries, targetLangName, apiKey, onBatchProgress) {
     if (!apiKey) {
-      throw new Error('Chưa cung cấp Gemini API Key!');
+      throw new Error('Chưa có Gemini API Key. Hãy đặt GEMINI_API_KEY trên Render hoặc nhập key vào ô này.');
     }
 
     const BATCH_SIZE = 30;
@@ -208,12 +222,18 @@ ${JSON.stringify(itemsToTranslate, null, 2)}`;
           parsed = JSON.parse(cleanJson);
         }
 
+        let translatedCount = 0;
         if (Array.isArray(parsed)) {
           for (const transItem of parsed) {
-            if (typeof transItem.id === 'number' && chunk[transItem.id]) {
+            if (typeof transItem.id === 'number' && chunk[transItem.id] && typeof transItem.translated === 'string') {
               results[i + transItem.id] = transItem.translated;
+              translatedCount += 1;
             }
           }
+        }
+
+        if (translatedCount !== chunk.length) {
+          throw new Error('Gemini không trả về đủ dữ liệu dịch.');
         }
       } catch (err) {
         console.error(`Gemini translation batch ${i} failed:`, err);
