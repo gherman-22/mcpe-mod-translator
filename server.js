@@ -1117,8 +1117,6 @@ app.get('/api/translate-stream', async (req, res) => {
     session.includeUi = translateUi === 'true';
 
     const googleTarget = TranslatorService.mapLanguageCode(targetLang);
-    const configuredGeminiApiKey = String(process.env.GEMINI_API_KEY || '').trim();
-    const effectiveGeminiApiKey = String(apiKey || '').trim() || configuredGeminiApiKey;
 
     let overallTotal = 0;
     session.inspection.packs.forEach(p => {
@@ -1144,7 +1142,7 @@ app.get('/api/translate-stream', async (req, res) => {
         return await TranslatorService.translateBatchWithGemini(
           entries,
           targetLang,
-          effectiveGeminiApiKey,
+          apiKey,
           (batchDone) => {
             const currentOverall = processedLines + batchDone;
             sendEvent('progress', {
@@ -1172,28 +1170,19 @@ app.get('/api/translate-stream', async (req, res) => {
         );
       } else {
         const rawTexts = entries.map(e => e.originalValue);
-        const reportProgress = (batchDone) => {
-          const currentOverall = processedLines + batchDone;
-          sendEvent('progress', {
-            current: Math.min(currentOverall, overallTotal),
-            total: overallTotal,
-            percent: Math.min(100, Math.round((currentOverall / overallTotal) * 100)),
-            currentItem: rawTexts[Math.min(batchDone - 1, rawTexts.length - 1)] || ''
-          });
-        };
-
-        try {
-          return await TranslatorService.translateBatchWithGoogle(rawTexts, googleTarget, reportProgress);
-        } catch (googleError) {
-          if (!configuredGeminiApiKey) throw googleError;
-          console.warn('Google Dịch không khả dụng, chuyển sang Gemini của server:', googleError.message);
-          return await TranslatorService.translateBatchWithGemini(
-            entries,
-            targetLang,
-            configuredGeminiApiKey,
-            reportProgress
-          );
-        }
+        return await TranslatorService.translateBatchWithGoogle(
+          rawTexts,
+          googleTarget,
+          (batchDone) => {
+            const currentOverall = processedLines + batchDone;
+            sendEvent('progress', {
+              current: Math.min(currentOverall, overallTotal),
+              total: overallTotal,
+              percent: Math.min(100, Math.round((currentOverall / overallTotal) * 100)),
+              currentItem: rawTexts[Math.min(batchDone - 1, rawTexts.length - 1)] || ''
+            });
+          }
+        );
       }
     }
 

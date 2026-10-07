@@ -1846,6 +1846,12 @@ function launchTranslation() {
   const doScripts = translateScripts.checked;
   const doUi = translateUi.checked;
 
+  if (selectedEngine === 'gemini' && !apiKey && !isVipActive) {
+    alert('Vui lòng nhập Google Gemini API Key, hoặc nâng cấp VIP, hoặc chọn Google Dịch (Miễn phí)!');
+    geminiApiKey.focus();
+    return;
+  }
+
   configSection.classList.add('hidden');
   progressSection.classList.remove('hidden');
   resultSection.classList.add('hidden');
@@ -1907,15 +1913,7 @@ function launchTranslation() {
   eventSource.addEventListener('error', (e) => {
     eventSource.close();
     eventSource = null;
-    let message = 'Có lỗi xảy ra trong quá trình dịch thuật. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại.';
-    if (e.data) {
-      try {
-        message = JSON.parse(e.data)?.message || message;
-      } catch (_) {
-        // Native EventSource errors do not include structured data.
-      }
-    }
-    alert(message);
+    alert('Có lỗi xảy ra trong quá trình dịch thuật. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại.');
     resetToUpload();
   });
 }
