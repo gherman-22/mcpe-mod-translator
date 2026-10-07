@@ -237,13 +237,7 @@ ${JSON.stringify(itemsToTranslate, null, 2)}`;
         }
       } catch (err) {
         console.error(`Gemini translation batch ${i} failed:`, err);
-        // Fallback to Google Translate for this batch
-        const googleTarget = this.mapLanguageCode(targetLangName);
-        const chunkTexts = chunk.map(c => c.originalValue);
-        const fallbackResults = await this.translateBatchWithGoogle(chunkTexts, googleTarget);
-        for (let j = 0; j < chunk.length; j++) {
-          results[i + j] = fallbackResults[j];
-        }
+        throw err;
       }
 
       if (onBatchProgress) {
@@ -324,13 +318,7 @@ CRITICAL RULES:
         }
       } catch (err) {
         console.error(`OpenAI batch error:`, err);
-        // Fallback to Google
-        const googleTarget = this.mapLanguageCode(targetLangName);
-        const chunkTexts = chunk.map(c => c.originalValue);
-        const fallbackResults = await this.translateBatchWithGoogle(chunkTexts, googleTarget);
-        for (let j = 0; j < chunk.length; j++) {
-          results[i + j] = fallbackResults[j];
-        }
+        throw err;
       }
 
       if (onBatchProgress) {
