@@ -3,6 +3,7 @@ const LangParser = require('./langParser');
 const ScriptParser = require('./scriptParser');
 const UiJsonParser = require('./uiJsonParser');
 const ManifestParser = require('./manifestParser');
+const BrArchiveService = require('./brArchiveService');
 
 class ArchiveService {
   /**
@@ -131,8 +132,9 @@ class ArchiveService {
       }
     }
 
-    // 3. Find texts/*.lang files
-    const langFiles = [];
+    // 3. Find texts/*.lang files, including the Bedrock .brarchive container
+    // introduced for pack optimization in newer Minecraft versions.
+    const langCandidates = [];
     const textsRegex = folderPrefix ? new RegExp(`^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}texts/[^/]+\\.lang$`, 'i') : /^texts\/[^/]+\.lang$/i;
 
     const matchedLangPaths = Object.keys(zip.files).filter(p => textsRegex.test(p));
@@ -153,13 +155,63 @@ class ArchiveService {
       const allEntries = LangParser.parse(rawContent);
       const translatableEntries = LangParser.getTranslatableEntries(allEntries);
 
-      langFiles.push({
+      langCandidates.push({
         path: lPath,
         filename: lPath.split('/').pop(),
         allEntries,
-        translatableEntries
+        translatableEntries,
+        sourceGroup: `folder:${lPath.substring(0, lPath.lastIndexOf('/') + 1)}`
       });
     }
+
+    const brTextArchives = Object.keys(zip.files).filter((archivePath) => {
+      const normalizedPath = archivePath.toLowerCase();
+      const expectedStart = folderPrefix.toLowerCase();
+      return normalizedPath.startsWith(expectedStart)
+        && normalizedPath.endsWith('__brarchive/texts.brarchive');
+    });
+
+    for (const archivePath of brTextArchives) {
+      try {
+        const archiveBuffer = await zip.file(archivePath).async('nodebuffer');
+        const archiveEntries = BrArchiveService.deserialize(archiveBuffer);
+
+        for (const archiveEntry of archiveEntries) {
+          if (!archiveEntry.name.toLowerCase().endsWith('.lang')) continue;
+
+          const rawContent = archiveEntry.data.toString('utf8');
+          const allEntries = LangParser.parse(rawContent);
+          const translatableEntries = LangParser.getTranslatableEntries(allEntries);
+
+          langCandidates.push({
+            path: `${archivePath}#/${archiveEntry.name}`,
+            filename: archiveEntry.name.split('/').pop(),
+            allEntries,
+            translatableEntries,
+            isBrArchive: true,
+            brArchivePath: archivePath,
+            brEntryName: archiveEntry.name,
+            sourceGroup: `brarchive:${archivePath.toLowerCase()}`
+          });
+        }
+      } catch (err) {
+        console.warn(`Could not read ${archivePath}:`, err.message);
+      }
+    }
+
+    // A language pack commonly contains the same keys in many languages.
+    // Translate the English source once per texts container, then generate the
+    // requested target language from that source.
+    const sourceByGroup = new Map();
+    for (const candidate of langCandidates) {
+      const selected = sourceByGroup.get(candidate.sourceGroup);
+      const isEnglish = candidate.filename.toLowerCase() === 'en_us.lang';
+      const selectedIsEnglish = selected?.filename.toLowerCase() === 'en_us.lang';
+      if (!selected || (isEnglish && !selectedIsEnglish)) {
+        sourceByGroup.set(candidate.sourceGroup, candidate);
+      }
+    }
+    const langFiles = Array.from(sourceByGroup.values());
 
     // 4. Find scripts/**/*.js / .ts files (Bedrock Script API menus, chat messages & forms)
     const scriptFiles = [];
@@ -259,10 +311,51 @@ class ArchiveService {
       }
 
       const folderPrefix = pack.folderPrefix || '';
+      const brArchivesToWrite = new Map();
+
+      const getBrArchive = async (archivePath) => {
+        const cached = brArchivesToWrite.get(archivePath);
+        if (cached) return cached;
+
+        const archiveFile = targetZip.file(archivePath);
+        if (!archiveFile) {
+          throw new Error(`Không tìm thấy ${archivePath} trong gói mod.`);
+        }
+
+        const entries = BrArchiveService.deserialize(await archiveFile.async('nodebuffer'));
+        const state = { entries };
+        brArchivesToWrite.set(archivePath, state);
+        return state;
+      };
 
       // 1. Repack .lang files
       for (const langFile of pack.langFiles) {
         const translatedContent = LangParser.serialize(langFile.allEntries, true);
+
+        if (langFile.isBrArchive && langFile.brArchivePath) {
+          const archive = await getBrArchive(langFile.brArchivePath);
+          BrArchiveService.upsertText(archive.entries, `${targetLangCode}.lang`, translatedContent);
+
+          if (overwriteSource) {
+            BrArchiveService.upsertText(archive.entries, langFile.brEntryName, translatedContent);
+          }
+
+          const languagesEntry = BrArchiveService.findEntry(archive.entries, 'languages.json');
+          let languagesList = ['en_US'];
+          if (languagesEntry) {
+            try {
+              languagesList = JSON.parse(languagesEntry.data.toString('utf8'));
+            } catch (err) {
+              console.warn(`Could not parse languages.json in ${langFile.brArchivePath}, recreating:`, err);
+            }
+          }
+
+          if (!Array.isArray(languagesList)) languagesList = ['en_US'];
+          if (!languagesList.includes(targetLangCode)) languagesList.push(targetLangCode);
+          if (!languagesList.includes('en_US')) languagesList.unshift('en_US');
+          BrArchiveService.upsertText(archive.entries, 'languages.json', JSON.stringify(languagesList, null, 2));
+          continue;
+        }
 
         // Create texts/<targetLangCode>.lang
         const dir = folderPrefix ? `${folderPrefix}texts/` : 'texts/';
@@ -297,6 +390,10 @@ class ArchiveService {
         }
 
         targetZip.file(languagesJsonPath, JSON.stringify(languagesList, null, 2));
+      }
+
+      for (const [archivePath, archive] of brArchivesToWrite) {
+        targetZip.file(archivePath, BrArchiveService.serialize(archive.entries));
       }
 
       // 2. Repack JavaScript scripts (if enabled)
