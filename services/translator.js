@@ -154,7 +154,7 @@ class TranslatorService {
   }
 
   /**
-   * Translate entries using Gemini AI (Gemini 2.0 Flash / 1.5 Flash)
+   * Translate entries using Gemini AI.
    */
   static async translateBatchWithGemini(entries, targetLangName, apiKey, onBatchProgress) {
     if (!apiKey) {
@@ -185,7 +185,13 @@ CRITICAL RULES:
       const userPrompt = `Translate this JSON array:
 ${JSON.stringify(itemsToTranslate, null, 2)}`;
 
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      // Gemini model names change over time. The Render owner can override this
+      // with GEMINI_MODEL without exposing the API key or changing source code.
+      const model = String(process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
+      if (!/^[a-zA-Z0-9._-]+$/.test(model)) {
+        throw new Error('GEMINI_MODEL không hợp lệ.');
+      }
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       try {
         const response = await fetch(endpoint, {
