@@ -154,7 +154,7 @@ class TranslatorService {
   }
 
   /**
-   * Translate entries using Gemini AI.
+   * Translate entries using Gemini AI (Gemini 2.0 Flash / 1.5 Flash)
    */
   static async translateBatchWithGemini(entries, targetLangName, apiKey, onBatchProgress) {
     if (!apiKey) {
@@ -185,13 +185,7 @@ CRITICAL RULES:
       const userPrompt = `Translate this JSON array:
 ${JSON.stringify(itemsToTranslate, null, 2)}`;
 
-      // Gemini model names change over time. The Render owner can override this
-      // with GEMINI_MODEL without exposing the API key or changing source code.
-      const model = String(process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
-      if (!/^[a-zA-Z0-9._-]+$/.test(model)) {
-        throw new Error('GEMINI_MODEL không hợp lệ.');
-      }
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       try {
         const response = await fetch(endpoint, {
@@ -243,7 +237,13 @@ ${JSON.stringify(itemsToTranslate, null, 2)}`;
         }
       } catch (err) {
         console.error(`Gemini translation batch ${i} failed:`, err);
-        throw err;
+        // Fallback to Google Translate for this batch
+        const googleTarget = this.mapLanguageCode(targetLangName);
+        const chunkTexts = chunk.map(c => c.originalValue);
+        const fallbackResults = await this.translateBatchWithGoogle(chunkTexts, googleTarget);
+        for (let j = 0; j < chunk.length; j++) {
+          results[i + j] = fallbackResults[j];
+        }
       }
 
       if (onBatchProgress) {
@@ -324,7 +324,13 @@ CRITICAL RULES:
         }
       } catch (err) {
         console.error(`OpenAI batch error:`, err);
-        throw err;
+        // Fallback to Google
+        const googleTarget = this.mapLanguageCode(targetLangName);
+        const chunkTexts = chunk.map(c => c.originalValue);
+        const fallbackResults = await this.translateBatchWithGoogle(chunkTexts, googleTarget);
+        for (let j = 0; j < chunk.length; j++) {
+          results[i + j] = fallbackResults[j];
+        }
       }
 
       if (onBatchProgress) {

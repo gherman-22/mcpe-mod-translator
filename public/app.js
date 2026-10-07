@@ -1850,7 +1850,7 @@ function launchTranslation() {
   progressSection.classList.remove('hidden');
   resultSection.classList.add('hidden');
 
-  currentEngineLabel.textContent = selectedEngine === 'gemini' ? 'Google Gemini AI' : 'Google Translate';
+  currentEngineLabel.textContent = selectedEngine === 'gemini' ? 'Google Gemini 2.0 AI' : 'Google Translate';
   progressBar.style.width = '0%';
   progressPercent.textContent = '0%';
   progressCounts.textContent = 'Chuẩn bị kết nối...';
