@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "id": "1a0d80a5-983a-414a-814c-48ca549e1a5c",
+    "email": "czkh@gmail.com",
+    "passwordHash": "$2a$12$anNdJAT3bnX9ksxbyWEF9Oa3i7qT6todMA2ozbLHdGzguOfxPzjG.",
+    "vipUntil": "2026-10-15T14:00:20.329Z",
+    "vipTier": "VIP 1 (5 Ngày)",
+    "createdAt": "2026-10-10T13:49:59.750Z"
+  }
+]

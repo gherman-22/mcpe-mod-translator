@@ -1046,7 +1046,7 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
 
     res.json({
       success: true,
-      requiresLoginToTranslate: !req.authUserRecord,
+      requiresLoginToTranslate: false,
       sessionId,
       filename,
       isAddon: inspection.isAddon,
@@ -1069,7 +1069,7 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
 app.get('/api/translate-stream', async (req, res) => {
   const {
     sessionId,
-    engine = 'google',
+    engine = 'auto',
     apiKey = '',
     targetLang = 'vi_VN',
     overwriteSource = 'true',
@@ -1083,22 +1083,24 @@ app.get('/api/translate-stream', async (req, res) => {
     return res.status(404).send('Session không tồn tại hoặc đã hết hạn.');
   }
 
-  if (!req.authUserRecord) {
-    return res.status(401).send('Bạn cần đăng nhập trước khi bắt đầu dịch.');
-  }
-
-  if (session.userId && session.userId !== req.authUserRecord.id) {
+  const currentUserId = req.authUserRecord?.id || null;
+  if (session.userId && currentUserId && session.userId !== currentUserId) {
     return res.status(403).send('Bạn không có quyền truy cập phiên dịch này.');
   }
 
-  if (!session.userId) session.userId = req.authUserRecord.id;
+  if (!session.userId && currentUserId) session.userId = currentUserId;
 
   const isVip = isUserVip(req.authUserRecord);
   const appConfig = getAppConfig();
   const gateEnabled = !!appConfig.monetization?.linkGate?.enabled;
 
-  if (!isVip && gateEnabled && !hasValidGateToken(gateToken, req.authUserRecord.id)) {
-    return res.status(403).send('Bạn cần hoàn thành bước vượt link trước khi bắt đầu dịch.');
+  if (gateEnabled && !isVip) {
+    if (!req.authUserRecord) {
+      return res.status(401).send('Bạn cần đăng nhập trước khi bắt đầu dịch.');
+    }
+    if (!hasValidGateToken(gateToken, req.authUserRecord.id)) {
+      return res.status(403).send('Bạn cần hoàn thành bước vượt link trước khi bắt đầu dịch.');
+    }
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1138,11 +1140,14 @@ app.get('/api/translate-stream', async (req, res) => {
     async function translateEntryList(entries) {
       if (!entries || entries.length === 0) return [];
       
-      if (engine === 'gemini') {
+      const effectiveGeminiKey = (apiKey && apiKey.trim()) || process.env.GEMINI_API_KEY || appConfig.ai?.geminiApiKey || '';
+      const shouldUseGemini = engine === 'gemini' || (engine === 'auto' && effectiveGeminiKey);
+
+      if (shouldUseGemini) {
         return await TranslatorService.translateBatchWithGemini(
           entries,
           targetLang,
-          apiKey,
+          effectiveGeminiKey,
           (batchDone) => {
             const currentOverall = processedLines + batchDone;
             sendEvent('progress', {
@@ -1342,7 +1347,7 @@ app.post('/api/update-entry', (req, res) => {
   if (!session) {
     return res.status(404).json({ error: 'Session không tồn tại!' });
   }
-  if (!req.authUserRecord || session.userId !== req.authUserRecord.id) {
+  if (session.userId && req.authUserRecord && session.userId !== req.authUserRecord.id) {
     return res.status(403).json({ error: 'Bạn không có quyền sửa phiên này.' });
   }
 
@@ -1392,7 +1397,7 @@ app.get('/api/download/:sessionId', async (req, res) => {
     return res.status(404).send('Session đã hết hạn hoặc không tồn tại. Vui lòng tải lại trang.');
   }
 
-  if (!req.authUserRecord || session.userId !== req.authUserRecord.id) {
+  if (session.userId && req.authUserRecord && session.userId !== req.authUserRecord.id) {
     return res.status(403).send('Bạn không có quyền tải file của phiên này.');
   }
 

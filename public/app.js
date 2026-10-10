@@ -1778,6 +1778,15 @@ async function handleFileUpload(file) {
     currentInspectionData = data;
     renderModInspection(data);
 
+    // Tự động kích hoạt quy trình dịch ngay lập tức nếu bật chế độ tự động
+    const autoToggle = document.getElementById('autoTranslateToggle');
+    const shouldAuto = !autoToggle || autoToggle.checked;
+    if (shouldAuto) {
+      setTimeout(() => {
+        startTranslation();
+      }, 350);
+    }
+
   } catch (err) {
     alert(`Lỗi: ${err.message}`);
   } finally {
@@ -1820,17 +1829,20 @@ async function startTranslation() {
     return;
   }
 
-  if (!currentUser) {
-    pendingStartAfterAuth = true;
-    openAuthModal('login');
-    return;
-  }
+  // 1. Kiểm tra tài khoản nếu vượt link đang bật
+  if (linkGateConfig?.enabled && !isVipActive) {
+    if (!currentUser) {
+      pendingStartAfterAuth = true;
+      openAuthModal('login');
+      return;
+    }
 
-  if (!isVipActive && linkGateConfig?.enabled && !linkGateToken) {
-    btnOpenShortlink.href = '#';
-    linkGateNote.textContent = linkGateConfig.note || 'Vượt Link4M để lấy mã dùng một lần, rồi nhập mã tại đây.';
-    linkGateModal.classList.remove('hidden');
-    return;
+    if (!linkGateToken) {
+      btnOpenShortlink.href = '#';
+      linkGateNote.textContent = linkGateConfig.note || 'Vượt Link4M để lấy mã dùng một lần, rồi nhập mã tại đây.';
+      linkGateModal.classList.remove('hidden');
+      return;
+    }
   }
 
   launchTranslation();
@@ -1839,28 +1851,22 @@ async function startTranslation() {
 function launchTranslation() {
   if (!currentSessionId) return;
 
-  const selectedEngine = document.querySelector('input[name="engine"]:checked').value;
-  const apiKey = geminiApiKey.value.trim();
-  const targetLang = targetLanguageSelect.value;
-  const overwrite = overwriteEnUs.checked;
-  const doScripts = translateScripts.checked;
-  const doUi = translateUi.checked;
-
-  if (selectedEngine === 'gemini' && !apiKey && !isVipActive) {
-    alert('Vui lòng nhập Google Gemini API Key, hoặc nâng cấp VIP, hoặc chọn Google Dịch (Miễn phí)!');
-    geminiApiKey.focus();
-    return;
-  }
+  const selectedEngine = document.querySelector('input[name="engine"]:checked')?.value || 'auto';
+  const apiKey = geminiApiKey ? geminiApiKey.value.trim() : '';
+  const targetLang = targetLanguageSelect ? targetLanguageSelect.value : 'vi_VN';
+  const overwrite = overwriteEnUs ? overwriteEnUs.checked : true;
+  const doScripts = translateScripts ? translateScripts.checked : true;
+  const doUi = translateUi ? translateUi.checked : true;
 
   configSection.classList.add('hidden');
   progressSection.classList.remove('hidden');
   resultSection.classList.add('hidden');
 
-  currentEngineLabel.textContent = selectedEngine === 'gemini' ? 'Google Gemini 2.0 AI' : 'Google Translate';
+  currentEngineLabel.textContent = selectedEngine === 'gemini' ? 'Gemini 2.0 AI' : (selectedEngine === 'auto' ? 'AI Tự Động Hoàn Toàn' : 'Google Translate');
   progressBar.style.width = '0%';
   progressPercent.textContent = '0%';
   progressCounts.textContent = 'Chuẩn bị kết nối...';
-  progressCurrentItem.textContent = 'Đang phân tích các dòng văn bản, tin nhắn & menu...';
+  progressCurrentItem.textContent = 'Đang tự động phân tích và dịch hoàn toàn các dòng văn bản, tin nhắn & menu...';
 
   // Clear and initialize terminal stream
   if (terminalStreamBox) {

@@ -118,6 +118,26 @@
 
     <!-- SECTION 1: UPLOAD AREA -->
     <section id="uploadSection" class="w-full mb-8">
+      <!-- Auto-Translate Toggle Card -->
+      <div class="flex items-center justify-between p-3.5 mb-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-gray-900 border border-emerald-500/30 backdrop-blur-md shadow-lg">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-base shadow-sm">
+            <i class="fa-solid fa-wand-magic-sparkles animate-pulse"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-bold text-white">Chế độ tự động dịch hoàn toàn</span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">MẶC ĐỊNH BẬT</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">Khi chọn file mod, hệ thống sẽ tự động quét và dịch hoàn toàn 100% bằng AI/Máy dịch rồi cho tải về ngay.</p>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-3">
+          <input type="checkbox" id="autoTranslateToggle" checked class="sr-only peer">
+          <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+        </label>
+      </div>
+
       <div id="dropZone" class="group relative border-2 border-dashed border-gray-700 hover:border-emerald-500/80 rounded-2xl p-8 md:p-14 text-center cursor-pointer transition-all duration-300 bg-gray-900/60 hover:bg-gray-800/50 backdrop-blur-xl shadow-2xl">
         <!-- Expanded accept attribute for seamless Android/iOS file picker compatibility -->
         <input type="file" id="fileInput" accept=".mcpack,.mcaddon,.zip,application/zip,application/x-zip-compressed,application/octet-stream,*/*" class="hidden">
@@ -221,18 +241,18 @@
             </label>
             <div class="grid grid-cols-2 gap-2">
               <label class="relative flex items-center p-3 rounded-xl border border-gray-700 bg-gray-950/60 hover:bg-gray-800/40 cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition-all">
-                <input type="radio" name="engine" value="google" checked class="text-emerald-500 focus:ring-0 mr-2.5">
+                <input type="radio" name="engine" value="auto" checked class="text-emerald-500 focus:ring-0 mr-2.5">
                 <div>
-                  <div class="text-sm font-semibold text-white">Google Dịch</div>
-                  <div class="text-[11px] text-emerald-400 font-medium">Miễn phí 100%, không cần key</div>
+                  <div class="text-sm font-semibold text-white">🤖 Tự Động Hoàn Toàn</div>
+                  <div class="text-[11px] text-emerald-400 font-medium">AI & Máy dịch đa tầng (Khuyên dùng)</div>
                 </div>
               </label>
 
               <label class="relative flex items-center p-3 rounded-xl border border-gray-700 bg-gray-950/60 hover:bg-gray-800/40 cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition-all">
                 <input type="radio" name="engine" value="gemini" class="text-emerald-500 focus:ring-0 mr-2.5">
                 <div>
-                  <div class="text-sm font-semibold text-white">Gemini AI (Google)</div>
-                  <div class="text-[11px] text-teal-400 font-medium">Chuẩn thuật ngữ game</div>
+                  <div class="text-sm font-semibold text-white">Gemini 2.0 AI (Key riêng)</div>
+                  <div class="text-[11px] text-teal-400 font-medium">Dùng API Key Google AI Studio</div>
                 </div>
               </label>
             </div>
@@ -647,9 +667,9 @@
           <i class="fa-solid fa-circle-check"></i>
         </div>
         <div>
-          <h2 class="text-2xl md:text-3xl font-extrabold text-white mb-2">Dịch Thành Công Toàn Diện!</h2>
+          <h2 class="text-2xl md:text-3xl font-extrabold text-white mb-2">🎉 Đã Tự Động Dịch Hoàn Tất 100%!</h2>
           <p class="text-gray-300 text-sm md:text-base max-w-lg mx-auto">
-            Đã dịch hoàn tất <strong id="resTotalLines" class="text-emerald-400">0</strong> chuỗi (bao gồm ngôn ngữ mod, menu script, tin nhắn, menu manifest & UI). File mod đã được cập nhật sẵn sàng chơi!
+            Hệ thống đã tự động dịch hoàn toàn <strong id="resTotalLines" class="text-emerald-400">0</strong> chuỗi (bao gồm ngôn ngữ mod, menu script, tin nhắn chat, subpacks & JSON UI). File mod đã được đóng gói hoàn chỉnh, sẵn sàng cài đặt và chơi ngay!
           </p>
         </div>
 
@@ -662,12 +682,12 @@
         <div class="pt-2 flex flex-col items-center justify-center gap-3">
           <div id="countdownBox" class="hidden text-xs text-amber-300 font-mono flex items-center gap-2">
             <i class="fa-solid fa-clock text-amber-400 animate-spin"></i>
-            <span>Đang chuẩn bị file tải về... (<span id="countdownTimer" class="font-bold">5</span>s)</span>
+            <span>Đang chuẩn bị file tải về... (<span id="countdownTimer" class="font-bold">0</span>s)</span>
           </div>
 
           <div class="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
             <a id="btnDownload" href="#" class="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-gray-950 font-bold text-lg shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:shadow-[0_0_50px_rgba(16,185,129,0.7)] transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
-              <i class="fa-solid fa-download text-xl"></i> Tải Về File Mod Đã Dịch
+              <i class="fa-solid fa-download text-xl"></i> Tải Về File Mod Đã Dịch (Chơi Ngay)
             </a>
             <button id="btnNewFile" class="w-full sm:w-auto px-5 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium text-sm border border-gray-700 transition-colors flex items-center justify-center gap-2">
               <i class="fa-solid fa-rotate-right"></i> Dịch file mod khác
@@ -692,9 +712,9 @@
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
           <div>
             <h3 class="text-lg font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-table-list text-emerald-400"></i> Xem lại & Chỉnh sửa trực tiếp
+              <i class="fa-solid fa-table-list text-emerald-400"></i> Xem lại bản dịch đã hoàn tất (Tùy chọn)
             </h3>
-            <p class="text-xs text-gray-400">Hiển thị cả chuỗi .lang, Menu/Tin nhắn JavaScript, Menu ngoài map (Manifest) và JSON UI. Bạn có thể sửa trực tiếp bất kỳ ô nào trước khi tải về!</p>
+            <p class="text-xs text-gray-400">Toàn bộ nội dung mod đã được hệ thống tự động dịch xong 100%. Bạn có thể nhấp <strong>"Tải Về File Mod"</strong> ở trên để chơi ngay, hoặc nhấp vào bất kỳ ô nào bên dưới nếu muốn tinh chỉnh lại lời dịch!</p>
           </div>
           <div class="relative w-full sm:w-64">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>

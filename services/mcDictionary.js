@@ -95,8 +95,8 @@ function protectMinecraftTokens(text) {
   const tokens = [];
 
   // Match Minecraft section sign formatting codes (§0 to §r, §g, §t, §u, etc.)
-  // Match variable format specifiers: %s, %1$s, %d, {0}, {name}, \n, \t
-  const regex = /(§[0-9a-gk-orA-GK-OR]|%[0-9$]*[sdf]|(?:\{[a-zA-Z0-9_]+\})|\\n|\\t)/g;
+  // Match variable format specifiers: %s, %1$s, %d, {0}, {name}, \n, \t, and real newlines
+  const regex = /(§[0-9a-gk-orA-GK-OR]|%[0-9$]*[sdf]|(?:\{[a-zA-Z0-9_]+\})|\\n|\\t|\r?\n)/g;
 
   const maskedText = text.replace(regex, (match) => {
     const id = tokens.length;
@@ -115,7 +115,7 @@ function restoreMinecraftTokens(text, tokens) {
   tokens.forEach((token, index) => {
     // Some translation services may insert spaces like [ #0 # ] or [# 0 #]
     const tokenRegex = new RegExp(`\\[\\s*#\\s*${index}\\s*#\\s*\\]`, 'g');
-    restored = restored.replace(tokenRegex, token);
+    restored = restored.replace(tokenRegex, () => token);
   });
   return restored;
 }
