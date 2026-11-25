@@ -18,7 +18,8 @@ class ArchiveService {
     const packs = [];
 
     // Check if outer zip directly contains manifest.json or if it contains nested .mcpacks
-    const hasOuterManifest = Object.keys(zip.files).some(p => p.toLowerCase().endsWith('manifest.json') && !p.includes('/'));
+    const isFileEntry = (p) => zip.files[p] && !zip.files[p].dir;
+    const hasOuterManifest = Object.keys(zip.files).some(p => isFileEntry(p) && p.toLowerCase().endsWith('manifest.json') && !p.includes('/'));
 
     if (!isAddon && hasOuterManifest) {
       // Standalone single pack (.mcpack or .zip)
@@ -26,7 +27,7 @@ class ArchiveService {
       if (packInfo) packs.push(packInfo);
     } else {
       // Check for nested .mcpack files or subfolders with manifest.json
-      const nestedPackFiles = Object.keys(zip.files).filter(f => f.toLowerCase().endsWith('.mcpack'));
+      const nestedPackFiles = Object.keys(zip.files).filter(f => isFileEntry(f) && f.toLowerCase().endsWith('.mcpack'));
 
       if (nestedPackFiles.length > 0) {
         // Nested .mcpack files inside .mcaddon or .zip
@@ -38,7 +39,7 @@ class ArchiveService {
         }
       } else {
         // Subfolders containing manifest.json?
-        const manifestFiles = Object.keys(zip.files).filter(f => f.toLowerCase().endsWith('manifest.json'));
+        const manifestFiles = Object.keys(zip.files).filter(f => isFileEntry(f) && f.toLowerCase().endsWith('manifest.json'));
         if (manifestFiles.length > 0) {
           for (const mPath of manifestFiles) {
             const folderPrefix = mPath.includes('/') ? mPath.substring(0, mPath.lastIndexOf('/') + 1) : '';
@@ -90,10 +91,13 @@ class ArchiveService {
    * Extract info from a zip instance representing a single pack
    */
   static async extractPackFromZip(zip, displayName, packIdentifier, folderPrefix = '') {
+    const isFileEntry = (p) => zip.files[p] && !zip.files[p].dir;
+
     // 1. Find and parse manifest.json (Includes subpacks menu options)
     let manifestData = null;
     let manifestEntries = [];
     const manifestPath = Object.keys(zip.files).find(p => {
+      if (!isFileEntry(p)) return false;
       const norm = p.toLowerCase();
       return folderPrefix ? norm === (folderPrefix + 'manifest.json').toLowerCase() : norm.endsWith('manifest.json');
     });
@@ -119,6 +123,7 @@ class ArchiveService {
     // 2. Find pack icon
     let iconBase64 = null;
     const iconPath = Object.keys(zip.files).find(p => {
+      if (!isFileEntry(p)) return false;
       const norm = p.toLowerCase();
       return folderPrefix ? norm === (folderPrefix + 'pack_icon.png').toLowerCase() : norm.endsWith('pack_icon.png');
     });
@@ -137,7 +142,7 @@ class ArchiveService {
     const langCandidates = [];
     const textsRegex = folderPrefix ? new RegExp(`^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}texts/[^/]+\\.lang$`, 'i') : /^texts\/[^/]+\.lang$/i;
 
-    const matchedLangPaths = Object.keys(zip.files).filter(p => textsRegex.test(p));
+    const matchedLangPaths = Object.keys(zip.files).filter(p => isFileEntry(p) && textsRegex.test(p));
 
     matchedLangPaths.sort((a, b) => {
       if (a.toLowerCase().endsWith('en_us.lang')) return -1;
@@ -146,7 +151,12 @@ class ArchiveService {
     });
 
     if (matchedLangPaths.length === 0) {
-      const anyLang = Object.keys(zip.files).filter(p => p.toLowerCase().endsWith('.lang'));
+      const prefixLower = folderPrefix.toLowerCase();
+      const anyLang = Object.keys(zip.files).filter(p => {
+        if (!isFileEntry(p)) return false;
+        const norm = p.toLowerCase();
+        return norm.endsWith('.lang') && (!prefixLower || norm.startsWith(prefixLower));
+      });
       matchedLangPaths.push(...anyLang);
     }
 
@@ -215,11 +225,17 @@ class ArchiveService {
 
     // 4. Find scripts/**/*.js / .ts files (Bedrock Script API menus, chat messages & forms)
     const scriptFiles = [];
+    const prefixLower = folderPrefix.toLowerCase();
     const scriptRegex = folderPrefix
       ? new RegExp(`^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}scripts/.*\\.(js|ts)$`, 'i')
-      : /^scripts\/.*\\.(js|ts)$/i;
+      : /^scripts\/.*\.(js|ts)$/i;
 
-    const matchedScriptPaths = Object.keys(zip.files).filter(p => scriptRegex.test(p) || (p.toLowerCase().includes('scripts/') && (p.endsWith('.js') || p.endsWith('.ts'))));
+    const matchedScriptPaths = Object.keys(zip.files).filter(p => {
+      if (!isFileEntry(p)) return false;
+      const norm = p.toLowerCase();
+      if (prefixLower && !norm.startsWith(prefixLower)) return false;
+      return scriptRegex.test(p) || (norm.includes('scripts/') && (norm.endsWith('.js') || norm.endsWith('.ts')));
+    });
 
     for (const sPath of matchedScriptPaths) {
       try {
@@ -242,9 +258,14 @@ class ArchiveService {
     const uiFiles = [];
     const uiRegex = folderPrefix
       ? new RegExp(`^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}ui/.*\\.json$`, 'i')
-      : /^ui\/.*\\.json$/i;
+      : /^ui\/.*\.json$/i;
 
-    const matchedUiPaths = Object.keys(zip.files).filter(p => uiRegex.test(p) || (p.toLowerCase().includes('ui/') && p.endsWith('.json')));
+    const matchedUiPaths = Object.keys(zip.files).filter(p => {
+      if (!isFileEntry(p)) return false;
+      const norm = p.toLowerCase();
+      if (prefixLower && !norm.startsWith(prefixLower)) return false;
+      return uiRegex.test(p) || (norm.includes('ui/') && norm.endsWith('.json'));
+    });
 
     for (const uPath of matchedUiPaths) {
       // Skip _ui_defs.json

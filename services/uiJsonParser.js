@@ -10,7 +10,7 @@ class UiJsonParser {
    * @returns {Array<{key: string, originalValue: string, translatedValue: string, jsonPath: string}>}
    */
   static extractTranslatableStrings(rawJson) {
-    if (!rawJson) return [];
+    if (!rawJson) return { parsed: null, entries: [] };
 
     let parsed;
     try {
@@ -21,7 +21,7 @@ class UiJsonParser {
         const stripped = rawJson.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
         parsed = JSON.parse(stripped);
       } catch (e2) {
-        return [];
+        return { parsed: null, entries: [] };
       }
     }
 

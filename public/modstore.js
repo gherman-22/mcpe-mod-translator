@@ -31,7 +31,9 @@
     emptyMsg.textContent = 'Đang tải...'; emptyMsg.classList.remove('hidden');
     try {
       const res = await authFetch('/api/mods', { cache: 'no-store' });
-      const data = await res.json();
+      const rawText = await res.text();
+      const data = rawText ? JSON.parse(rawText) : {};
+      if (!res.ok) throw new Error(data.message || 'load failed');
       canManage = !!data.canManage; applyAdminUi();
       render(data.mods || []);
     } catch { emptyMsg.textContent = 'Không tải được kho mod. Thử lại sau.'; }

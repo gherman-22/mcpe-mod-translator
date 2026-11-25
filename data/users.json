@@ -6,5 +6,21 @@
     "vipUntil": "2026-10-15T14:00:20.329Z",
     "vipTier": "VIP 1 (5 Ngày)",
     "createdAt": "2026-10-10T13:49:59.750Z"
+  },
+  {
+    "id": "503f1850-bf88-4c42-8a18-73989e7d3018",
+    "email": "hhhh2009@gmail.com",
+    "passwordHash": "$2a$12$2ns4Xy2q.bL9TW1/6zBjgOlMOzfNwQ.m8IOHKDnLM1j4uP7jRkOOu",
+    "vipUntil": "2026-11-30T09:50:24.409Z",
+    "vipTier": "VIP 1 (5 Ngày)",
+    "createdAt": "2026-11-25T09:49:00.095Z"
+  },
+  {
+    "id": "f0fbb17f-2c3e-479b-a7f8-a1646b359778",
+    "email": "cxc@gmail.com",
+    "passwordHash": "$2a$12$rO5WVBFkzWyoTuzzIbhcrOV5t4IHSRsHO4c.bOeYDalNRxp3qnFB.",
+    "vipUntil": null,
+    "vipTier": null,
+    "createdAt": "2026-11-25T10:02:51.162Z"
   }
 ]

@@ -3,6 +3,7 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const crypto = require('crypto');
 const ArchiveService = require('./services/archiveService');
 const TranslatorService = require('./services/translator');
@@ -498,14 +499,40 @@ async function attachUser(req, res, next) {
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/video', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'video.html'));
+const PUBLIC_DIR = path.join(__dirname, 'public');
+app.use(express.static(PUBLIC_DIR));
+app.get(['/video', '/video/'], (req, res) => {
+  res.sendFile('video.html', { root: PUBLIC_DIR });
 });
 app.use(attachUser);
 
-// Configure Multer for in-memory file handling (up to 200MB)
-const storage = multer.memoryStorage();
+// Store uploaded files on disk in temp directory so Render's free-tier RAM is not exhausted by large mods
+const UPLOAD_TEMP_DIR = path.join(os.tmpdir(), 'mcpe-translator-uploads');
+fs.mkdirSync(UPLOAD_TEMP_DIR, { recursive: true });
+
+function removeFileQuietly(filePath) {
+  if (!filePath) return;
+  fs.promises.unlink(filePath).catch(() => {});
+}
+
+function cleanupStaleUploadTempFiles() {
+  try {
+    const entries = fs.readdirSync(UPLOAD_TEMP_DIR);
+    for (const entry of entries) {
+      removeFileQuietly(path.join(UPLOAD_TEMP_DIR, entry));
+    }
+  } catch {}
+}
+cleanupStaleUploadTempFiles();
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdir(UPLOAD_TEMP_DIR, { recursive: true }, (err) => cb(err, UPLOAD_TEMP_DIR));
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${crypto.randomUUID()}.upload`);
+  }
+});
 const upload = multer({
   storage: storage,
   limits: { fileSize: 200 * 1024 * 1024 }
@@ -518,10 +545,15 @@ setInterval(() => {
   const now = Date.now();
   for (const [id, session] of sessions.entries()) {
     if (now - session.createdAt > 2 * 60 * 60 * 1000) {
+      removeFileQuietly(session.tempFilePath);
       sessions.delete(id);
     }
   }
 }, 10 * 60 * 1000);
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true });
+});
 
 // ---------- Authentication API ----------
 app.post('/api/auth/register', async (req, res) => {
@@ -775,8 +807,8 @@ async function listMods() {
 }
 
 // Trang kho mod là index riêng (public/kho-mod.html)
-app.get(['/kho-mod', '/kho-mod/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'kho-mod.html'));
+app.get(['/kho-mod', '/kho-mod/', '/kho-mod.html'], (req, res) => {
+  res.sendFile('kho-mod.html', { root: PUBLIC_DIR });
 });
 
 // Ai cũng xem được kho mod; chỉ admin web mới tạo/xóa vật phẩm
@@ -921,8 +953,8 @@ app.get('/api/link-gate/config', (req, res) => {
   });
 });
 
-app.get('/lay-ma', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'lay-ma.html'));
+app.get(['/lay-ma', '/lay-ma/'], (req, res) => {
+  res.sendFile('lay-ma.html', { root: PUBLIC_DIR });
 });
 
 app.post('/api/link-gate/start', async (req, res) => {
@@ -990,23 +1022,27 @@ app.post('/api/link-gate/verify', async (req, res) => {
  * Supports .mcpack, .mcaddon, .zip and binary ZIP detection (mobile uploads)
  */
 app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
+  const uploadedPath = req.file?.path;
+  let keepTempFile = false;
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Vui lòng chọn file mod (.mcpack, .mcaddon, .zip)!' });
     }
 
+    const fileBuffer = req.file.buffer || await fs.promises.readFile(uploadedPath);
     const filename = req.file.originalname || 'mod_file.mcpack';
     const validExts = ['.mcpack', '.mcaddon', '.zip'];
     const hasValidExt = validExts.some(ext => filename.toLowerCase().endsWith(ext));
     
     // Check ZIP magic header (50 4B 03 04) to support mobile browsers where extension might be stripped
-    const isZipBuffer = req.file.buffer && req.file.buffer.length >= 4 && req.file.buffer[0] === 0x50 && req.file.buffer[1] === 0x4B;
+    const isZipBuffer = fileBuffer && fileBuffer.length >= 4 && fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4B;
 
     if (!hasValidExt && !isZipBuffer) {
       return res.status(400).json({ error: 'Định dạng file không hỗ trợ! Chỉ chấp nhận .mcpack, .mcaddon hoặc .zip.' });
     }
 
-    const inspection = await ArchiveService.inspectArchive(req.file.buffer, filename);
+    const inspection = await ArchiveService.inspectArchive(fileBuffer, filename);
 
     if (inspection.packs.length === 0 || inspection.grandTotal === 0) {
       return res.status(400).json({
@@ -1019,7 +1055,8 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
       id: sessionId,
       userId: req.authUserRecord?.id || null,
       filename: filename,
-      originalBuffer: req.file.buffer,
+      tempFilePath: uploadedPath || null,
+      originalBuffer: uploadedPath ? null : fileBuffer,
       inspection: inspection,
       targetLangCode: 'vi_VN',
       overwriteSource: true,
@@ -1028,6 +1065,7 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
       translated: false,
       createdAt: Date.now()
     });
+    keepTempFile = true;
 
     const clientPacks = inspection.packs.map(p => ({
       displayName: p.displayName,
@@ -1060,6 +1098,10 @@ app.post('/api/inspect', upload.single('modFile'), async (req, res) => {
   } catch (err) {
     console.error('Inspect error:', err);
     res.status(500).json({ error: `Lỗi khi đọc file mod: ${err.message}` });
+  } finally {
+    if (!keepTempFile) {
+      removeFileQuietly(uploadedPath);
+    }
   }
 });
 
@@ -1106,11 +1148,20 @@ app.get('/api/translate-stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
   const sendEvent = (event, data) => {
+    if (res.writableEnded || res.destroyed) return;
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
+
+  const keepAliveTimer = setInterval(() => {
+    if (!res.writableEnded && !res.destroyed) {
+      res.write(': ping\n\n');
+    }
+  }, 20000);
+  req.on('close', () => clearInterval(keepAliveTimer));
 
   try {
     session.targetLangCode = targetLang;
@@ -1337,6 +1388,8 @@ app.get('/api/translate-stream', async (req, res) => {
     console.error('Translation stream error:', err);
     sendEvent('error', { message: err.message || 'Lỗi trong quá trình dịch thuật.' });
     res.end();
+  } finally {
+    clearInterval(keepAliveTimer);
   }
 });
 
@@ -1402,8 +1455,20 @@ app.get('/api/download/:sessionId', async (req, res) => {
   }
 
   try {
+    let originalBuffer = session.originalBuffer;
+    if (!originalBuffer && session.tempFilePath) {
+      try {
+        originalBuffer = await fs.promises.readFile(session.tempFilePath);
+      } catch {
+        return res.status(404).send('File gốc của phiên này không còn tồn tại trên server. Vui lòng tải lại file mod.');
+      }
+    }
+    if (!originalBuffer) {
+      return res.status(404).send('Không tìm thấy dữ liệu file gốc. Vui lòng tải lại file mod.');
+    }
+
     const outputBuffer = await ArchiveService.repackArchive({
-      originalBuffer: session.originalBuffer,
+      originalBuffer,
       filename: session.filename,
       translatedPacks: session.inspection.packs,
       targetLangCode: session.targetLangCode,
@@ -1500,6 +1565,41 @@ app.get('/api/install/ios-profile', (req, res) => {
   } catch (err) {
     res.status(500).send(`Lỗi tạo hồ sơ iOS: ${err.message}`);
   }
+});
+
+// Global error handler so Multer, body-parser, and unexpected API errors always return valid JSON
+app.use((err, req, res, next) => {
+  if (req.file?.path) {
+    removeFileQuietly(req.file.path);
+  }
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  let status = err.statusCode || err.status || 500;
+  let message = err.message || 'Lỗi xử lý trên server.';
+
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      status = 413;
+      message = 'File mod quá lớn (tối đa 200MB).';
+    } else {
+      status = 400;
+      message = `Lỗi tải file lên server: ${err.message}`;
+    }
+  } else if (err.type === 'entity.too.large') {
+    status = 413;
+    message = 'Dữ liệu gửi lên quá lớn.';
+  } else if (err instanceof SyntaxError && 'body' in err) {
+    status = 400;
+    message = 'Dữ liệu JSON gửi lên không hợp lệ.';
+  }
+
+  console.error('Unhandled request error:', err);
+  if (req.path && req.path.startsWith('/api/')) {
+    return res.status(status).json({ success: false, error: message, message });
+  }
+  return res.status(status).send(message);
 });
 
 async function startServer() {

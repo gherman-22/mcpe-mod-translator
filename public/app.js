@@ -24,6 +24,35 @@ async function authFetch(url, options = {}) {
   return fetch(url, options);
 }
 
+// Helper: Safely parse JSON responses so empty or non-JSON proxy/server errors give clear messages
+async function parseJsonResponse(response, fallbackMessage = 'Máy chủ không phản hồi dữ liệu hợp lệ.') {
+  const rawText = await response.text();
+  if (!rawText || !rawText.trim()) {
+    if (response.status === 413) {
+      throw new Error('File mod quá lớn so với giới hạn của máy chủ. Vui lòng thử file nhỏ hơn.');
+    }
+    if (response.status === 502 || response.status === 503) {
+      throw new Error('Máy chủ đang khởi động lại hoặc quá tải bộ nhớ. Vui lòng đợi vài giây rồi thử lại.');
+    }
+    if (response.status === 504) {
+      throw new Error('Hết thời gian chờ xử lý trên máy chủ. Vui lòng thử lại hoặc dùng file nhẹ hơn.');
+    }
+    throw new Error(`${fallbackMessage} (HTTP ${response.status || 'không xác định'})`);
+  }
+
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    if (response.status === 413) {
+      throw new Error('File mod quá lớn so với giới hạn của máy chủ. Vui lòng thử file nhỏ hơn.');
+    }
+    if (response.status >= 500) {
+      throw new Error(`Máy chủ gặp sự cố (HTTP ${response.status}). Vui lòng thử lại sau ít giây.`);
+    }
+    throw new Error(`${fallbackMessage} (HTTP ${response.status})`);
+  }
+}
+
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -1153,7 +1182,8 @@ function safelyInitialize(featureName, initialize) {
 async function loadMonetizationConfig() {
   try {
     const res = await authFetch('/api/monetization/config');
-    monetizationConfig = await res.json();
+    if (!res.ok) return;
+    monetizationConfig = await parseJsonResponse(res, 'Không tải được cấu hình.');
 
     if (monetizationConfig) {
       if (monetizationConfig.donation) {
@@ -1187,7 +1217,7 @@ async function loadCurrentUser() {
       setCurrentUser(null);
       return;
     }
-    const data = await res.json();
+    const data = await parseJsonResponse(res);
     setCurrentUser(data.user || null);
   } catch {
     setCurrentUser(null);
@@ -1319,7 +1349,7 @@ async function refreshVipStatus() {
       }
       return;
     }
-    const data = await res.json();
+    const data = await parseJsonResponse(res);
     setCurrentUser(data.user || null);
   } catch {}
 }
@@ -1327,7 +1357,8 @@ async function refreshVipStatus() {
 async function loadLinkGateConfig() {
   try {
     const res = await authFetch('/api/link-gate/config');
-    linkGateConfig = await res.json();
+    if (!res.ok) throw new Error('status');
+    linkGateConfig = await parseJsonResponse(res);
   } catch {
     linkGateConfig = { enabled: false };
   }
@@ -1416,7 +1447,7 @@ function setupAuth() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res, 'Không thể xác thực.');
       if (!res.ok) throw new Error(data.message || 'Không thể xác thực.');
 
       if (data.token) {
@@ -1450,7 +1481,7 @@ function setupAuth() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword: newPasswordVal })
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res, 'Không thể đặt lại mật khẩu.');
       if (!res.ok) throw new Error(data.message || 'Không thể đặt lại mật khẩu.');
 
       if (data.token) {
@@ -1479,7 +1510,7 @@ function setupAuth() {
             newPassword: newPassword.value.trim()
           })
         });
-        const data = await res.json();
+        const data = await parseJsonResponse(res, 'Lỗi khi đổi mật khẩu.');
         if (!res.ok) throw new Error(data.message || 'Lỗi khi đổi mật khẩu.');
         alert(data.message || 'Đổi mật khẩu thành công!');
         currentPassword.value = '';
@@ -1768,10 +1799,10 @@ async function handleFileUpload(file) {
       body: formData
     });
 
-    const data = await response.json();
+    const data = await parseJsonResponse(response, 'Lỗi khi đọc file mod.');
 
     if (!response.ok) {
-      throw new Error(data.error || 'Lỗi khi đọc file mod.');
+      throw new Error(data.error || data.message || 'Lỗi khi đọc file mod.');
     }
 
     currentSessionId = data.sessionId;
@@ -1919,7 +1950,14 @@ function launchTranslation() {
   eventSource.addEventListener('error', (e) => {
     eventSource.close();
     eventSource = null;
-    alert('Có lỗi xảy ra trong quá trình dịch thuật. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại.');
+    let msg = 'Có lỗi xảy ra trong quá trình dịch thuật. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại.';
+    if (e && e.data) {
+      try {
+        const errData = JSON.parse(e.data);
+        if (errData && errData.message) msg = errData.message;
+      } catch {}
+    }
+    alert(msg);
     resetToUpload();
   });
 }
